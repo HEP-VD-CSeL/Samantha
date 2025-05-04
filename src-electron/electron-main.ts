@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, ipcMain, BrowserWindow } from 'electron';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url'
@@ -16,11 +16,12 @@ async function createWindow() {
    */
   mainWindow = new BrowserWindow({
     icon: path.resolve(currentDir, 'icons/icon.png'), // tray icon
-    width: 1000,
-    height: 600,
+    width: 1024,
+    height: 768,
     useContentSize: true,
     webPreferences: {
       contextIsolation: true,
+      sandbox: false,
       // More info: https://v2.quasar.dev/quasar-cli-vite/developing-electron-apps/electron-preload-script
       preload: path.resolve(
         currentDir,
@@ -62,4 +63,10 @@ app.on('activate', () => {
   if (mainWindow === undefined) {
     void createWindow();
   }
+});
+
+ipcMain.on('cpu-usage', (event, usage) => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) // Forward CPU usage to the renderer process
+    win.webContents.send('cpu-usage-update', usage); 
 });

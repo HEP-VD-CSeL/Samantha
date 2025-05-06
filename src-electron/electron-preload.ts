@@ -1,25 +1,80 @@
 import { contextBridge, ipcRenderer }  from 'electron'
-import os, { platform } from 'os';
-import { execSync } from 'child_process';
+import os, { platform } from 'os'
+import { execSync } from 'child_process'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
+contextBridge.exposeInMainWorld('electron', {
+  ipcRenderer: {
+    on: (channel: string, listener: (...args: any[]) => void) =>
+      ipcRenderer.on(channel, listener),
+    send: (channel: string, ...args: any[]) =>
+      ipcRenderer.send(channel, ...args),
+  },
+});
 
 // get system information
 contextBridge.exposeInMainWorld('sys', {
+  pickFolder: () => ipcRenderer.invoke('pick-folder'),
+  setupWorkspace: async (wpPath: string) => {
+    console.log(`setting workdspace at ${wpPath}`)
+    ipcRenderer.send('setup-progress', 'Starting workspace setup...')
+    
+    // make sure path exists
+    await fs.mkdir(wpPath, { recursive: true })
+
+    // Check if data.json exists, otherwise create it
+    const dataFilePath = path.join(wpPath, 'data.json')
+    try {
+      await fs.access(dataFilePath)
+      ipcRenderer.send('setup-progress', 'Data file already exists, skipping creation...')
+    } catch {
+      ipcRenderer.send('setup-progress', 'Creating data file...')
+      await fs.writeFile(dataFilePath, '{}', 'utf-8') // Create an empty JSON file
+    }
+
+    // Check if models folder exists, otherwise create it
+    const modelsFolderPath = path.join(wpPath, 'models')
+    await fs.mkdir(modelsFolderPath, { recursive: true })
+    
+    // List all files in the models folder
+    const files = await fs.readdir(modelsFolderPath)
+
+    // Check if projects folder exists, otherwise create it
+    await fs.mkdir(path.join(wpPath, 'projects'), { recursive: true })
+
+    // download rt-detr-x.pt if it doesn't exist
+    if (!files.includes('rt-detr-x.pt')) {
+      ipcRenderer.send('setup-progress', 'Downloading RT-DETR-X.pt...')
+      const url = 'https://github.com/ultralytics/assets/releases/download/v8.3.0/rtdetr-x.pt'
+      await ipcRenderer.invoke('download-rt-detr-x', path.join(modelsFolderPath, `rt-detr-x.pt`), url)
+    }
+    else {
+      ipcRenderer.send('setup-progress', 'RT-DETR-X model already exists, skipping download...')
+    }
+
+    console.log(`Setup DONE`);
+  },
   platform: () => {
+    let name;
     switch (os.platform()) {
       case 'win32':
-        return 'Windows';
+        name = 'Windows'; break;
       case 'darwin':
-        return 'macOS';
+        name = 'macOS'; break;
       case 'linux':
-        return 'Linux';
+        name = 'Linux'; break;
       default:
-        return 'Unknown';
+        name = 'Unknown';
+    }
+    return {
+      name,
+      version: os.release(),
+      arch: os.arch(),
     }
   },
   cpu: () => {
     const cpus = os.cpus();
-    const cpu = cpus[0];
     return {
       cores: os.cpus().length,
       model: os.cpus()[0]?.model,
@@ -45,41 +100,7 @@ contextBridge.exposeInMainWorld('sys', {
       return { cuda: false, mps: false, name: 'Unknown', memory: 'Unknown' };
     }
   },
-  streamCpuUsage: () => {
-    let previousIdle = 0;
-    let previousTotal = 0;
-  
-    setInterval(() => {
-      const cpus = os.cpus();
-      let totalIdle = 0;
-      let totalTick = 0;
-  
-      // Aggregate idle and total times across all CPU cores
-      for (const { times } of cpus) {
-        totalIdle += times.idle;
-        totalTick += times.user + times.nice + times.sys + times.idle + times.irq;
-      }
-  
-      // Calculate the difference from the previous snapshot
-      const idleDifference = totalIdle - previousIdle;
-      const totalDifference = totalTick - previousTotal;
-  
-      // Update the previous values
-      previousIdle = totalIdle;
-      previousTotal = totalTick;
-  
-      // Calculate CPU usage as a percentage
-      const usage = Math.round((1 - idleDifference / totalDifference) * 100);
-  
-      // Send CPU usage to the frontend
-      ipcRenderer.send('cpu-usage', usage);
-    }, 1500); // Every second
-  },
-  ipcRenderer: {
-    on: (channel: string, listener: (event: any, ...args: any[]) => void) => ipcRenderer.on(channel, listener),
-    send: (channel: string, ...args: any[]) => ipcRenderer.send(channel, ...args),
-    invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
-  },
+
 })
 
 

@@ -1,7 +1,11 @@
-import { app, ipcMain, BrowserWindow } from 'electron';
+import { app, ipcMain, BrowserWindow, dialog } from 'electron';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url'
+import axios from 'axios'
+import fs from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+
 
 // needed in case process is undefined under Linux
 const platform = process.platform || os.platform();
@@ -53,6 +57,34 @@ async function createWindow() {
 
 void app.whenReady().then(createWindow);
 
+ipcMain.handle('pick-folder', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory'], 
+  });
+
+  if (result.canceled) {
+    return null; 
+  }
+
+  return result.filePaths[0]; 
+});
+
+ipcMain.on('setup-progress', (event, message) => {
+  if (mainWindow) 
+    mainWindow.webContents.send('setup-progress', message);
+});
+
+ipcMain.handle('download-rt-detr-x', async (_event, dest: string, url: string) => {
+  const response = await axios.get(url, { responseType: 'stream' })
+  await new Promise<void>((resolve, reject) => {
+    const stream = createWriteStream(dest);
+    response.data.pipe(stream);
+    stream.on('finish', resolve);
+    stream.on('error', reject);
+  })
+  return { success: true }
+})
+
 app.on('window-all-closed', () => {
   if (platform !== 'darwin') {
     app.quit();
@@ -65,8 +97,3 @@ app.on('activate', () => {
   }
 });
 
-ipcMain.on('cpu-usage', (event, usage) => {
-  const win = BrowserWindow.getAllWindows()[0];
-  if (win) // Forward CPU usage to the renderer process
-    win.webContents.send('cpu-usage-update', usage); 
-});

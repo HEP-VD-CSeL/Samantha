@@ -9,9 +9,25 @@ declare namespace NodeJS {
 }
 
 export declare global {
+
+  interface Window {
+    electron: {
+      ipcRenderer: {
+        on: (channel: string, listener: (...args: any[]) => void) => void;
+        send: (channel: string, ...args: any[]) => void;
+      };
+    };
+  }
+
   interface Window {
     sys: {
-      platform: () => string,
+      pickFolder: () => Promise<string | null>,
+      setupWorkspace: (path: string) => Promise<void>,
+      platform: () => {
+        name: string,
+        version: string,
+        arch: string
+      },
       cpu: () => {
         cores: number,
         model: string,
@@ -24,10 +40,7 @@ export declare global {
         name: string,
         memory: number
       },
-      streamCpuUsage: () => void,
-      ipcRenderer: {
-        on: (channel: string, listener: (event: any, ...args: any[]) => void) => void;
-      };
+      
     };
   }
 }

@@ -1,5 +1,5 @@
 <template>
-  <q-page class="row items-center justify-evenly">
+  <q-page style="width:100%" class="row items-center justify-evenly">
     <q-card>
       <q-card-section>
         <div class="text-h6">Samantha</div>

@@ -1,5 +1,5 @@
 <template>
-  <q-page class="row items-center justify-evenly">
+  <q-page style="width:100%" class="row items-center justify-evenly">
     <q-card>
       <q-card-section>
         <div v-if="workspace == null" class="text-center">
@@ -74,7 +74,7 @@ async function prepareWorkspace() {
     store.workSpacePath = workspace.value
 
     setTimeout(() => {
-      store.ready = true
+      store.appReady()
     }, 1500)
   }
   catch(err){

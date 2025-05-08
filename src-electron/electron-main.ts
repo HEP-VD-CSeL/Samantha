@@ -60,21 +60,20 @@ void app.whenReady().then(createWindow);
 ipcMain.handle('pick-folder', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory'], 
-  });
+  })
 
-  if (result.canceled) {
-    return null; 
-  }
+  if (result.canceled) 
+    return null
 
-  return result.filePaths[0]; 
-});
+  return result.filePaths[0] 
+})
 
 ipcMain.on('setup-progress', (event, message) => {
   if (mainWindow) 
     mainWindow.webContents.send('setup-progress', message);
 });
 
-ipcMain.handle('download-rt-detr-x', async (_event, dest: string, url: string) => {
+ipcMain.handle('download-models', async (_event, dest: string, url: string) => {
   const response = await axios.get(url, { responseType: 'stream' })
   await new Promise<void>((resolve, reject) => {
     const stream = createWriteStream(dest);
@@ -84,6 +83,27 @@ ipcMain.handle('download-rt-detr-x', async (_event, dest: string, url: string) =
   })
   return { success: true }
 })
+
+ipcMain.handle('read-workspace', async (_event, filePath: string) => {
+  const data = await fs.readFile(filePath, 'utf-8')
+  return JSON.parse(data)
+});
+
+ipcMain.handle('pick-file', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [
+      { name: 'Videos', extensions: ['mp4', 'avi', 'mov', 'mkv', 'webm', 'wmv', 'flv', 'mpeg', 'mpg'] }
+    ]
+  })
+  if (result.canceled) return null;
+  return result.filePaths[0];
+});
+
+ipcMain.handle('write-workspace', async (_event, filePath: string, data: any) => {
+  await fs.writeFile(filePath, data, 'utf-8');
+  return true;
+});
 
 app.on('window-all-closed', () => {
   if (platform !== 'darwin') {

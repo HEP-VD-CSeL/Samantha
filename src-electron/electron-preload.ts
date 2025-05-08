@@ -3,6 +3,9 @@ import os, { platform } from 'os'
 import { execSync } from 'child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { type Workspace } from 'src/stores/wpStore'
+import utils from 'src/utils'
+
 
 contextBridge.exposeInMainWorld('electron', {
   ipcRenderer: {
@@ -11,11 +14,32 @@ contextBridge.exposeInMainWorld('electron', {
     send: (channel: string, ...args: any[]) =>
       ipcRenderer.send(channel, ...args),
   },
-});
+})
+
+contextBridge.exposeInMainWorld('workspaceAPI', {
+  readWorkspace: (filePath: string) => ipcRenderer.invoke('read-workspace', filePath),
+  writeWorkspace: (filePath: string, data: any) => ipcRenderer.invoke('write-workspace', filePath, data),
+})
 
 // get system information
 contextBridge.exposeInMainWorld('sys', {
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
+  pickFile: () => ipcRenderer.invoke('pick-file'),
+  createFolder: async (folderPath: string) => {
+    try {
+      await fs.access(folderPath)
+      // If no error, the folder exists
+      throw new Error('This project already exists')
+    } catch (err: any) {
+      // Only create the folder if the error is "not exists"
+      if (err && err.code === 'ENOENT') {
+        // Folder does not exist, create it
+        await fs.mkdir(folderPath, { recursive: true })
+      } 
+      else
+        throw err
+    }
+  },
   setupWorkspace: async (wpPath: string) => {
     console.log(`setting workdspace at ${wpPath}`)
     ipcRenderer.send('setup-progress', 'Starting workspace setup...')
@@ -30,7 +54,11 @@ contextBridge.exposeInMainWorld('sys', {
       ipcRenderer.send('setup-progress', 'Data file already exists, skipping creation...')
     } catch {
       ipcRenderer.send('setup-progress', 'Creating data file...')
-      await fs.writeFile(dataFilePath, '{}', 'utf-8') // Create an empty JSON file
+      const baseData = {
+        projects: [],
+        logs: [`${utils.getCurrentDataTime()}: Creating new workspace at ${wpPath}`],
+      } as Workspace
+      await fs.writeFile(dataFilePath, JSON.stringify(baseData), 'utf-8') // Create an empty JSON file
     }
 
     // Check if models folder exists, otherwise create it
@@ -47,7 +75,7 @@ contextBridge.exposeInMainWorld('sys', {
     if (!files.includes('rt-detr-x.pt')) {
       ipcRenderer.send('setup-progress', 'Downloading RT-DETR-X.pt...')
       const url = 'https://github.com/ultralytics/assets/releases/download/v8.3.0/rtdetr-x.pt'
-      await ipcRenderer.invoke('download-rt-detr-x', path.join(modelsFolderPath, `rt-detr-x.pt`), url)
+      await ipcRenderer.invoke('download-models', path.join(modelsFolderPath, `rt-detr-x.pt`), url)
     }
     else {
       ipcRenderer.send('setup-progress', 'RT-DETR-X model already exists, skipping download...')

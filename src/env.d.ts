@@ -17,11 +17,14 @@ export declare global {
         send: (channel: string, ...args: any[]) => void;
       };
     };
-  }
-
-  interface Window {
+    workspaceAPI: {
+      readWorkspace: (filePath: string) => Promise<any>;
+      writeWorkspace: (filePath: string, data: any) => Promise<void>;
+    };
     sys: {
       pickFolder: () => Promise<string | null>,
+      pickFile: () => Promise<string | null>,
+      createFolder: (folderPath: string) => Promise<void>,
       setupWorkspace: (path: string) => Promise<void>,
       platform: () => {
         name: string,

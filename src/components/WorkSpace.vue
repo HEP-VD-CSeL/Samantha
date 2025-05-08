@@ -46,9 +46,11 @@ import { ref, onMounted } from 'vue';
 import { type Ref } from 'vue';
 import { appStore } from 'stores/appStore'
 import { useQuasar, QVueGlobals } from 'quasar'
+import { wpStore } from 'src/stores/wpStore';
 
 const q: QVueGlobals = useQuasar()
 const store = appStore()
+const wp = wpStore()
 const workspace: Ref<string|null> = ref(null)
 const setupDone: Ref<boolean|null> = ref(null)
 const setupText: Ref<Array<string>> = ref([ ])
@@ -73,9 +75,12 @@ async function prepareWorkspace() {
     setupDone.value = true
     store.workSpacePath = workspace.value
 
+    // load wp 
+    wp.loadWorkspace()
+
     setTimeout(() => {
       store.appReady()
-    }, 1500)
+    }, 1)
   }
   catch(err){
     q.dialog({

@@ -26,7 +26,6 @@ export const appStore = defineStore('appStore', () => {
   let oldTabSize = 0
   function openTab(tabName: "projects"|"console"){
     if (tab.value == null) {
-      console.log('openTab null')
       tab.value = tabName
       upperLimit.value = 100
       splitter.value = oldTabSize

@@ -5,7 +5,9 @@ import { appStore } from 'stores/appStore'
 
 const store = appStore()
 
-const dataFilePath = `${store.workSpacePath}/data.json`
+function getWPPath(){
+  return `${store.workSpacePath}/data.json`
+}
 
 export type Project = {
   id: string,
@@ -23,18 +25,30 @@ export type Workspace = {
 export const wpStore = defineStore('wpStore', () => {
   
   const workspace: Ref<Workspace|null> = ref(null)
+  const selectedProject: Ref<Project|null> = ref(null)
 
   async function loadWorkspace() {
-    const data = await window.workspaceAPI.readWorkspace(dataFilePath)
+    const data = await window.workspaceAPI.readWorkspace(getWPPath())
     workspace.value = data
   }
 
   async function persist(){
-    await window.workspaceAPI.writeWorkspace(dataFilePath, JSON.stringify(workspace.value))
+    await window.workspaceAPI.writeWorkspace(getWPPath(), JSON.stringify(workspace.value))
+  }
+
+  function selectProjectById(id: string|null) {
+    if (id == null) {
+      selectedProject.value = null
+      return
+    }
+    if (workspace.value)
+      selectedProject.value = workspace.value.projects.find(p => p.id === id) || null
   }
 
   return {
     workspace,
+    selectedProject,
+    selectProjectById,
     loadWorkspace,
     persist,
   }

@@ -1,7 +1,7 @@
 <template>
   <q-layout view="lHh Lpr lFf">
 
-    <q-drawer v-model="drawer" show-if-above :mini="true" :breakpoint="0" bordered :class="$q.dark.isActive ? 'bg-grey-9' : 'bg-grey-3'">
+    <q-drawer v-model="drawer" show-if-above :mini="true" :breakpoint="0" bordered class="bg-grey-3">
       <div class="column fit" style="overflow: hidden;">
         <q-scroll-area class="col">
           <q-list v-if="store.ready">
@@ -47,7 +47,8 @@
           <template v-else>
             <WorkSpace v-if="!store.ready" />
             <div v-else>
-              <!--<SelectProject />-->
+              <NoProject v-if="wp.selectedProject == null" />
+              <Project v-else />
             </div>
           </template>
         </template>
@@ -60,12 +61,16 @@
 import { ref, onMounted, onBeforeMount, watch } from 'vue'
 import { type Ref } from 'vue'
 import { appStore } from 'stores/appStore'
+import { wpStore } from 'src/stores/wpStore'
 import SystemRequirements from 'src/components/SystemRequirements.vue'
 import WorkSpace from 'src/components/WorkSpace.vue'
 import Projects from 'src/components/Projects.vue'
 import Logs from 'src/components/Logs.vue'
+import NoProject from 'src/components/NoProject.vue'
+import Project from 'src/components/Project.vue'
 
 const store = appStore()
+const wp = wpStore()
 const drawer: Ref<boolean> = ref(true)
 
 

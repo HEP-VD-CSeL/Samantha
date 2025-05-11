@@ -23,6 +23,7 @@
       </q-card-section>
 
       <q-card-actions align="right">
+        <q-btn @click="newProjectAlert = false" flat label="Cancel" color="negative" />
         <q-btn @click="createProject" flat label="Create" color="primary" :disable="!newProjectName.length || newProjectName.length > 255 || videoFilePath == null" />
       </q-card-actions>
     </q-card>
@@ -49,8 +50,21 @@
         <q-separator spaced />
 
         <q-item v-for="(project, index) of wp.workspace?.projects" clickable @click="">
-          <q-item-section @click="">
+          <q-item-section @click="wp.selectProjectById(project.id)">
             <q-item-label>{{ project.name }}</q-item-label>
+            <q-item-label caption>{{ project.createdAt }}</q-item-label>
+          </q-item-section>
+          <q-item-section avatar>
+            <q-btn flat dense round icon="mdi-dots-vertical">
+              <q-menu>
+                <q-list style="min-width: 100px">
+                  <q-item @click="deleteProject(project)" clickable v-close-popup>
+                    <q-item-section>Delete</q-item-section>
+                  </q-item>
+                </q-list>
+              </q-menu>
+            </q-btn>
+            
           </q-item-section>
         </q-item>
       </q-list>
@@ -67,7 +81,9 @@ import { appStore } from 'stores/appStore'
 import { wpStore } from 'src/stores/wpStore';
 import { type Project } from 'src/stores/wpStore';
 import utils from 'src/utils'
+import { useQuasar, QVueGlobals } from 'quasar'
 
+const q: QVueGlobals = useQuasar()
 const store = appStore()
 const wp = wpStore()
 const newProjectAlert: Ref<boolean> = ref(false)
@@ -81,11 +97,11 @@ function newProject(){
 }
 
 async function createProject(){
-  const folder = utils.sanitize(newProjectName.value)
+  const folder = utils.sanitize(newProjectName.value.trim())
 
   const project: Project = {
     id: utils.uid(),
-    name: newProjectName.value,
+    name: newProjectName.value.trim(),
     folder: folder,
     filePath: videoFilePath.value || '',
     createdAt: utils.getCurrentDataTime()
@@ -97,13 +113,33 @@ async function createProject(){
   }
   catch (e) {
     console.error('Error creating project folder:', e)
-    return
+    return q.dialog({ title: 'Error', message: e instanceof Error ? e.message : String(e) })
+    
   }
   
   wp.workspace?.projects.unshift(project)
   wp.persist()
 
   newProjectAlert.value = false
+}
+
+async function deleteProject(project: Project) {
+  try {
+    // delete folder
+    await window.sys.deleteFolder(`${store.workSpacePath}/projects/${project.folder}`)
+    // delete the project in the workspace
+    const index = wp.workspace?.projects.findIndex(p => p.id === project.id)
+    if (index !== undefined && index >= 0) {
+      wp.workspace?.projects.splice(index, 1)
+      wp.persist()
+    }
+
+    wp.selectedProject = null
+  } 
+  catch (e) {
+    console.error('Error deleting project folder:', e)
+    q.dialog({ title: 'Error', message: e instanceof Error ? e.message : String(e) })
+  }
 }
 
 async function selectFile() {

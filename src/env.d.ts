@@ -24,6 +24,7 @@ export declare global {
     sys: {
       pickFolder: () => Promise<string | null>,
       pickFile: () => Promise<string | null>,
+      deleteFolder: (folderPath: string) => Promise<void>,
       createFolder: (folderPath: string) => Promise<void>,
       setupWorkspace: (path: string) => Promise<void>,
       platform: () => {

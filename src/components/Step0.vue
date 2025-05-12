@@ -1,19 +1,36 @@
 <template>
   <div class="col row items-center justify-center" style="border:1px solid red">
-    <div style="min-width:400px;border:1px solid green">
-    coucou
+    <div style="width:100%; max-width: 800px;">
+      <div>
+        <p class="text-center text-subtitle2">Video:{{ wp.selectedProject?.filePath }}</p> 
+        <div v-if="next">
+          <video style="border:1px solid grey; border-radius: 5px;"
+            ref="videoRef"
+            class="video-js vjs-default-skin"
+            controls
+            preload="auto"
+            :src="videoSrc"
+          />
+        </div>
+        <div v-else>
+          <p class="text-center text-h6">
+            <q-icon name="warning" color="orange" size="xl" />
+            An error has occurred while loading the video
+            <q-icon name="warning" color="orange" size="xl" />
+          </p>
+        </div>
+      </div>
     </div>
     <q-footer class="bg-grey-3 text-black">
       <q-toolbar>
         <q-space/>
-        <q-btn color="primary" label="Next" />
+        <q-btn @click="wp.step = 1" color="primary" label="Next" :disable="!next" />
       </q-toolbar>
     </q-footer>
   </div>
 </template>
   
 <script setup lang="ts">
-//import { app } from 'electron';
 import { ref, onMounted, watch } from 'vue'
 import { type Ref } from 'vue'
 import { appStore } from 'stores/appStore'
@@ -21,16 +38,30 @@ import { wpStore } from 'src/stores/wpStore'
 import { type Project } from 'src/stores/wpStore'
 import utils from 'src/utils'
 import { useQuasar, QVueGlobals } from 'quasar'
+import videojs from 'video.js'
+import 'video.js/dist/video-js.css'
 
 const q: QVueGlobals = useQuasar()
 const store = appStore()
 const wp = wpStore()
+const next: Ref<boolean> = ref(true)
 
-//const next: Ref<boolean> = ref(false)
-
+const videoSrc: Ref<string> = ref(`file://${wp.selectedProject?.filePath}`)
+const videoRef = ref<Element|string>('')
+let player = null
 
 onMounted(async () => {
-//  next.value = true
+  // @ts-ignore
+  videoRef.value.addEventListener('loadeddata', () => {
+    next.value = true
+  })
+
+  // @ts-ignore
+  videoRef.value.addEventListener('error', () => {
+    next.value = false
+  })
+
+  player = videojs(videoRef.value, { autoplay: false, controls: true, responsive: true, fluid: true})
 })
 
 </script>

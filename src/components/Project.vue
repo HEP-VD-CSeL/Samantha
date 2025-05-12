@@ -1,14 +1,15 @@
 <template>
   <q-page style="width:100%" class="q-pl-xs q-pt-xs q-pr-xs fit column">
     <q-breadcrumbs>
-      <q-breadcrumbs-el @click="step = 0" class="cursor-pointer"
+      <q-breadcrumbs-el @click="wp.step = 0" class="cursor-pointer"
         :label="wp.selectedProject?.name ? `${wp.selectedProject.name.slice(0, 10)}${wp.selectedProject.name.length > 10 ? '...' : ''}`: ''"/>      
       
-      <q-breadcrumbs-el v-if="step >= 1" @click="step = 1" class="cursor-pointer" label="Components" />
+      <q-breadcrumbs-el v-if="wp.step >= 1" @click="wp.step = 1" class="cursor-pointer" label="Video encoding" />
       
     </q-breadcrumbs>
     <div class="col fit column">
-      <Step0 v-if="step == 0" class="" />
+      <Step0 v-if="wp.step == 0" class="" />
+      <Step1 v-else-if="wp.step == 1" class="" />
     </div>
     
   </q-page>
@@ -24,13 +25,11 @@ import { type Project } from 'src/stores/wpStore'
 import utils from 'src/utils'
 import { useQuasar, QVueGlobals } from 'quasar'
 import Step0 from 'src/components/Step0.vue'
+import Step1 from 'src/components/Step1.vue'
 
 const q: QVueGlobals = useQuasar()
 const store = appStore()
 const wp = wpStore()
-
-const step: Ref<number> = ref(0)
-
 
 onMounted(async () => {
 

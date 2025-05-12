@@ -26,6 +26,7 @@ export const wpStore = defineStore('wpStore', () => {
   
   const workspace: Ref<Workspace|null> = ref(null)
   const selectedProject: Ref<Project|null> = ref(null)
+  const step: Ref<number> = ref(0)
 
   async function loadWorkspace() {
     const data = await window.workspaceAPI.readWorkspace(getWPPath())
@@ -43,10 +44,13 @@ export const wpStore = defineStore('wpStore', () => {
     }
     if (workspace.value)
       selectedProject.value = workspace.value.projects.find(p => p.id === id) || null
+
+    step.value = 1
   }
 
   return {
     workspace,
+    step,
     selectedProject,
     selectProjectById,
     loadWorkspace,

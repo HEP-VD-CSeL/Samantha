@@ -49,8 +49,8 @@
       <q-list separator>
         <q-separator spaced />
 
-        <q-item v-for="(project, index) of wp.workspace?.projects" clickable @click="">
-          <q-item-section @click="wp.selectProjectById(project.id)">
+        <q-item @click="wp.selectProjectById(project.id)" :focused="wp.selectedProject?.id == project.id" v-for="(project, index) of wp.workspace?.projects" clickable>
+          <q-item-section>
             <q-item-label>{{ project.name }}</q-item-label>
             <q-item-label caption>{{ project.createdAt }}</q-item-label>
           </q-item-section>
@@ -64,7 +64,6 @@
                 </q-list>
               </q-menu>
             </q-btn>
-            
           </q-item-section>
         </q-item>
       </q-list>

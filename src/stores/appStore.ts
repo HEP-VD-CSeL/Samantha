@@ -19,7 +19,7 @@ export const appStore = defineStore('appStore', () => {
     console.log('appReady')
     tab.value = 'projects'
     ready.value = true
-    splitter.value = 40
+    splitter.value = 25
     upperLimit.value = 100
   }
 

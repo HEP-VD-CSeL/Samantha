@@ -83,6 +83,10 @@ ipcMain.handle('download-models', async (_event, dest: string, url: string) => {
     stream.on('finish', resolve);
     stream.on('error', reject);
   })
+
+  // make the files executable
+  await fs.chmod(dest, 0o755)
+
   return { success: true }
 })
 
@@ -98,7 +102,8 @@ ipcMain.handle('pick-file', async () => {
       { name: 'Videos', extensions: ['mp4', 'avi', 'mov', 'mkv', 'webm', 'wmv', 'flv', 'mpeg', 'mpg'] }
     ]
   })
-  if (result.canceled) return null;
+  if (result.canceled) 
+    return null;
   return result.filePaths[0];
 });
 

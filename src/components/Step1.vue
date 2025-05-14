@@ -1,9 +1,25 @@
 <template>
-  <div class="col row items-center justify-center" style="border:1px solid red">
-    <div style="width:100%; ;">
-      <div>
+  <div class="col row" style="">
+    <div class="q-pa-xs" style="width:150px;float:left;border-right:1px solid grey;">
+      <p class="text-center text-subtitle2 q-mt-lg">Cuts</p> 
+      <q-scroll-area visible style="width:100%;height: calc(100vh - 150px)">
+        <q-item-label header v-if="!cuts.length">No cuts</q-item-label>
+        <q-list separator>
+          <q-item :focused="currentFrame==item" dense v-for="(item, index) in cuts" clickable v-ripple>
+            <q-item-section @click="goToFrame(item)">{{ frameToTime(item, fps) }}</q-item-section>
+            <q-item-section avatar>
+              <q-btn @click="cut(item)" flat dense round icon="clear" />  
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-scroll-area>
+    </div>
+    <div class="row items-center justify-center" style="flex:1;">
+      <div style="width:100%" class="q-pa-xs">
         <p class="text-center text-subtitle2">Video encoding</p> 
-        <div>
+        <p>Framerate: {{ currentFrame }} / {{ totalFrames }}</p>
+        <p>Ranges: {{ ranges }}</p>
+        <div :class="['video-wrapper', { 'show-stripes':   ranges.some(([start, end]) => typeof start === 'number' && typeof end === 'number' && currentFrame >= start && currentFrame <= end) }]">
           <video style="border:1px solid grey; border-radius: 5px;"
             ref="videoRef"
             class="video-js vjs-default-skin"
@@ -11,25 +27,28 @@
             preload="auto"
             :src="videoSrc"
           />
+          <q-btn @click="cut(currentFrame)" style="position:absolute; z-index: 30;bottom:70px;right:50px" size="xl" color="red-14" :label="cuts.includes(currentFrame) ? 'UNCUT' : 'CUT' " icon="mdi-content-cut"/>
         </div>
-        <div class="q-mt-md flex flex-center">
-
-          <q-btn
-            :label="isPlaying ? 'Pause' : 'Play'"
-            color="primary"
-            @click="togglePlay"
-            class="q-mr-sm"
-          />
-          <q-btn
-            label="Next Frame"
-            color="secondary"
-            @click="stepForward"
-          />
-
+        <div class="q-mt-md text-center" style="">
+          <q-btn round icon="mdi-skip-backward" color="secondary" @click="skipFrame(fps, 'backward')" class="q-mrl-sm q-mr-sm">
+            <q-tooltip>Skip back {{ fps }} frames</q-tooltip>
+          </q-btn>
+          <q-btn round icon="mdi-skip-previous" color="secondary" @click="skipFrame(1, 'backward')" class="q-mrl-sm q-mr-sm">
+            <q-tooltip>Skip back 1 frame</q-tooltip>
+          </q-btn>
+          <q-btn round :icon="isPlaying ? 'mdi-pause' : 'mdi-play'" color="primary" @click="togglePlay" class="q-mrl-sm q-mr-sm">
+            <q-tooltip>{{ isPlaying ? 'Pause' : 'Play' }}</q-tooltip>
+          </q-btn>
+          <q-btn round icon="mdi-skip-next" color="secondary" @click="skipFrame(1, 'forward')" class="q-mrl-sm q-mr-sm">
+            <q-tooltip>Step forward 1 frame</q-tooltip>
+          </q-btn>
+          <q-btn round icon="mdi-skip-forward" color="secondary" @click="skipFrame(fps, 'forward')" class="q-mrl-sm q-mr-sm">
+            <q-tooltip>Skip forward {{ fps }} frames</q-tooltip>
+          </q-btn>
         </div>
       </div>
     </div>
-    <q-footer class="bg-grey-3 text-black">
+    <q-footer class="bg-grey-3 text-black" style="z-index:9999">
       <q-toolbar>
         <q-btn @click="wp.step = 0" color="primary" label="Previous" />
         <q-space/>
@@ -41,7 +60,7 @@
 </template>
     
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import { type Ref } from 'vue'
 import { appStore } from 'stores/appStore'
 import { wpStore } from 'src/stores/wpStore'
@@ -59,8 +78,48 @@ const next: Ref<boolean> = ref(false)
 const videoSrc: Ref<string> = ref(`file://${wp.selectedProject?.filePath}`)
 const videoRef = ref<Element|string>('')
 let player: any = null
-
+let fps = 25
 const isPlaying: Ref<boolean> = ref(false)
+const totalFrames: Ref<number> = ref(0)
+const currentFrame: Ref<number> = ref(0)
+const cuts: Ref<Array<number>> = ref([1000, 2000, 3000, 4000, 5000, 6000])
+const ranges: Ref<Array<Array<number>>> = ref([])
+
+function computeRange(){
+  // copy the cuts
+  const r = cuts.value.map(Number)
+  // add the last frame if the number of cuts is odd
+  if (r.length % 2 === 1)
+    r.push(totalFrames.value)
+  
+  // group the cuts in pairs
+  ranges.value = []
+  for (let i = 0; i < r.length; i += 2) {
+    // @ts-ignore
+    ranges.value.push([r[i], r[i + 1]])
+  }
+}
+
+function cut(frame: number){
+  // if the frame is already in the cuts, remove it
+  if (cuts.value.includes(frame)) 
+    return cuts.value = cuts.value.filter((item) => item !== frame)
+  
+  // otherwise add it at the right place 
+  const index = cuts.value.findIndex((item) => item > frame)
+  if (index === -1) 
+    cuts.value.push(frame)
+  else 
+    cuts.value.splice(index, 0, frame)
+
+  computeRange()
+}
+
+function goToFrame(frame: number) {
+  if (player)
+    player.currentTime(Math.min(frame / fps, player.duration()))
+}
+
 function togglePlay() {
   const el = player || videoRef.value
   if (el) {
@@ -70,59 +129,110 @@ function togglePlay() {
       el.play()
   }
 }
-function stepForward() {
-  // Always use the native video element for frame stepping
+function skipFrame(nbFrames: number, direction: "forward"|"backward") {
   const el = videoRef.value as HTMLVideoElement
-  if (el && typeof el.currentTime === 'number') {
-    const fps = 25 // or your actual framerate
-    el.currentTime = Math.min(el.currentTime + 1 / fps, el.duration)
-  }
+  if (el && typeof el.currentTime === 'number') 
+    el.currentTime = Math.min(el.currentTime + (direction == 'forward' ? nbFrames : -nbFrames) / fps, el.duration)
+}
+
+function frameToTime(frame: number, fps: number): string {
+  const totalSeconds = Math.floor(frame / fps)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return [
+    hours.toString().padStart(2, '0'),
+    minutes.toString().padStart(2, '0'),
+    seconds.toString().padStart(2, '0')
+  ].join(':')
 }
 
 onMounted(async () => {
-  // @ts-ignore
-  videoRef.value.addEventListener('loadeddata', () => {
-    next.value = true
-  })
-
-  // @ts-ignore
-  videoRef.value.addEventListener('error', () => {
-    next.value = false
-  })
-
-  // @ts-ignore
-  videoRef.value.addEventListener('play', () => {
-    isPlaying.value = true 
-  })
-
-  // @ts-ignore
-  videoRef.value.addEventListener('pause', () => { 
-    isPlaying.value = false 
-  })
+  // get video framerate
+  try {
+    fps = await window.workspaceAPI.getVideoFPS(store.workSpacePath || '', wp.selectedProject?.filePath || '') || 25
+    console.log('FPS:', fps)
+  }
+  catch (e) {
+    console.error('Error getting video framerate:', e)
+  }
   
-
+  // video js player initialization without controls
   player = videojs(videoRef.value, { 
     autoplay: false, 
     responsive: true, 
     fluid: true,
-
     controlBar: {
       playToggle: false,
-      volumePanel: false,
+      volumePanel: true,
       pictureInPictureToggle: false,
       fullscreenToggle: false
     }
   })
+
+  player.on('loadedmetadata', () => {
+    console.log('Video loaded')
+    next.value = true
+    const duration = (videoRef.value as HTMLVideoElement).duration
+    totalFrames.value = Math.round(duration * fps)
+    computeRange()
+  })
+
+  player.on('timeupdate', () => {
+    const el = videoRef.value as HTMLVideoElement
+    currentFrame.value = Math.floor(el.currentTime * fps)
+  })
+
+  // @ts-ignore
+  player.on('error', () => {
+    next.value = false
+  })
+
+  // @ts-ignore
+  player.on('play', () => {
+    isPlaying.value = true 
+  })
+
+  // @ts-ignore
+  player.on('pause', () => { 
+    isPlaying.value = false 
+  })
+
+  
 })
+
 
 </script>
 
 <style scoped>
-:deep(.video-js .vjs-progress-holder) {
+
+.video-wrapper {
   position: relative;
-  background: transparent !important;
-  overflow: visible;
 }
+
+/* Hide stripes by default */
+:deep(.video-wrapper .video-js::after) {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: none;
+  pointer-events: none;
+  border-radius: 5px;
+  z-index: 1;
+}
+
+/* Show stripes only when .show-stripes is present */
+:deep(.video-wrapper.show-stripes .video-js::after) {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255,0,0,0.3) 0px,
+    rgba(255,0,0,0.3) 20px,
+    transparent 20px,
+    transparent 40px
+  );
+}
+
+/* colorize the progress bar */
 :deep(.video-js .vjs-progress-holder)::before {
   content: '';
   position: absolute;
@@ -141,38 +251,20 @@ onMounted(async () => {
   );
 }
 
-/* Make the played and loaded bars transparent */
-:deep(.video-js .vjs-play-progress),
-:deep(.video-js .vjs-load-progress) {
-  background: transparent !important;
-}
-
-/* Always show the control bar, even when inactive */
-:deep(.video-js .vjs-control-bar) {
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
-  transition: none !important;
-}
-:deep(.video-js.vjs-user-inactive) {
-  cursor: default !important;
-}
+/* always show the progress bar even when inactive */
 :deep(.video-js.vjs-user-inactive .vjs-control-bar) {
+  z-index: 2;
   opacity: 1 !important;
   visibility: visible !important;
   pointer-events: auto !important;
   transition: none !important;
 }
 
-/* Hide picture-in-picture and fullscreen buttons */
-:deep(.video-js .vjs-picture-in-picture-control),
-:deep(.video-js .vjs-fullscreen-control) {
-  display: none !important;
+:deep(.video-js .vjs-control-bar) {
+  z-index: 10 !important;
+  
 }
 
-/*
-:deep(.video-js .vjs-tech) {
-  pointer-events: none;
-}
-*/
+
+
 </style>

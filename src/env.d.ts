@@ -20,6 +20,7 @@ export declare global {
     workspaceAPI: {
       readWorkspace: (filePath: string) => Promise<any>;
       writeWorkspace: (filePath: string, data: any) => Promise<void>;
+      getVideoFPS: (workspace: string, filePath: string) => Promise<number | null>;
     };
     sys: {
       pickFolder: () => Promise<string | null>,

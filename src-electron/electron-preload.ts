@@ -5,7 +5,18 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { type Workspace } from 'src/stores/wpStore'
 import utils from 'src/utils'
+import ffmpeg from 'fluent-ffmpeg'
+import ffprobeStatic from 'ffprobe-static'
 
+async function checkAndDownload(modelsFolderPath: string, files: string[], file: string, url: string) {
+  if (!files.includes(file)) {
+    ipcRenderer.send('setup-progress', `Downloading ${file}...`)
+    await ipcRenderer.invoke('download-models', path.join(modelsFolderPath, file), url)
+  }
+  else {
+    ipcRenderer.send('setup-progress', `${file} already exists, skipping download...`)
+  }
+}
 
 contextBridge.exposeInMainWorld('electron', {
   ipcRenderer: {
@@ -19,6 +30,24 @@ contextBridge.exposeInMainWorld('electron', {
 contextBridge.exposeInMainWorld('workspaceAPI', {
   readWorkspace: (filePath: string) => ipcRenderer.invoke('read-workspace', filePath),
   writeWorkspace: (filePath: string, data: any) => ipcRenderer.invoke('write-workspace', filePath, data),
+  getVideoFPS(workspace: string, filePath: string): Promise<number | null> {
+    ffmpeg.setFfprobePath(`${workspace}/models/ffprobe`)
+    return new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(filePath, (err, metadata) => {
+        if (err) 
+          return reject(err)
+        // Find the video stream
+        const videoStream = metadata.streams.find(s => s.codec_type === 'video')
+        if (!videoStream || !videoStream.r_frame_rate) 
+          return resolve(null)
+        // r_frame_rate is a string like "25/1" or "30000/1001"
+        const [num, denom] = videoStream.r_frame_rate.split('/').map(Number)
+        if (!num || !denom) 
+          return resolve(null)
+        resolve(num / denom)
+      })
+    })
+  }
 })
 
 // get system information
@@ -55,7 +84,8 @@ contextBridge.exposeInMainWorld('sys', {
     try {
       await fs.access(dataFilePath)
       ipcRenderer.send('setup-progress', 'Data file already exists, skipping creation...')
-    } catch {
+    } 
+    catch {
       ipcRenderer.send('setup-progress', 'Creating data file...')
       const baseData = {
         projects: [],
@@ -74,15 +104,14 @@ contextBridge.exposeInMainWorld('sys', {
     // Check if projects folder exists, otherwise create it
     await fs.mkdir(path.join(wpPath, 'projects'), { recursive: true })
 
-    // download rt-detr-x.pt if it doesn't exist
-    if (!files.includes('rt-detr-x.pt')) {
-      ipcRenderer.send('setup-progress', 'Downloading RT-DETR-X.pt...')
-      const url = 'https://github.com/ultralytics/assets/releases/download/v8.3.0/rtdetr-x.pt'
-      await ipcRenderer.invoke('download-models', path.join(modelsFolderPath, `rt-detr-x.pt`), url)
-    }
-    else {
-      ipcRenderer.send('setup-progress', 'RT-DETR-X model already exists, skipping download...')
-    }
+    // download the following files if they don't exist
+    await checkAndDownload(modelsFolderPath, files, 'rt-detr-x.pt', 'https://github.com/ultralytics/assets/releases/download/v8.3.0/rtdetr-x.pt')
+    await checkAndDownload(modelsFolderPath, files, 'ffmpeg', 'http://static.grosjean.io/samantha/ffmpeg_osx') 
+    await checkAndDownload(modelsFolderPath, files, 'ffprobe', 'http://static.grosjean.io/samantha/ffprobe_osx') 
+    
+
+
+    // download ffmpeg if it doesn't exist
 
     console.log(`Setup DONE`);
   },

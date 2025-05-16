@@ -95,6 +95,20 @@ ipcMain.handle('read-workspace', async (_event, filePath: string) => {
   return JSON.parse(data)
 });
 
+ipcMain.handle('write-workspace', async (_event, filePath: string, data: any) => {
+  await fs.writeFile(filePath, data, 'utf-8');
+  return true;
+});
+
+ipcMain.handle('file-exists', async (_event, filePath: string) => {
+  try {
+    await fs.access(filePath)
+    return true
+  } catch {
+    return false
+  }
+})
+
 ipcMain.handle('pick-file', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile'],
@@ -105,11 +119,6 @@ ipcMain.handle('pick-file', async () => {
   if (result.canceled) 
     return null;
   return result.filePaths[0];
-});
-
-ipcMain.handle('write-workspace', async (_event, filePath: string, data: any) => {
-  await fs.writeFile(filePath, data, 'utf-8');
-  return true;
 });
 
 app.on('window-all-closed', () => {

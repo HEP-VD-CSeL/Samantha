@@ -18,19 +18,24 @@ async function checkAndDownload(modelsFolderPath: string, files: string[], file:
   }
 }
 
+async function removeSegments(outputPath: string) {
+  for (const file of await fs.readdir(outputPath))
+    if (file.startsWith('segment')) 
+      await fs.rm(path.join(outputPath, file))
+}
+
 contextBridge.exposeInMainWorld('electron', {
   ipcRenderer: {
-    on: (channel: string, listener: (...args: any[]) => void) =>
-      ipcRenderer.on(channel, listener),
-    send: (channel: string, ...args: any[]) =>
-      ipcRenderer.send(channel, ...args),
+    on: (channel: string, listener: (...args: any[]) => void) => ipcRenderer.on(channel, listener),
+    send: (channel: string, ...args: any[]) => ipcRenderer.send(channel, ...args),
   },
 })
 
 contextBridge.exposeInMainWorld('workspaceAPI', {
   readWorkspace: (filePath: string) => ipcRenderer.invoke('read-workspace', filePath),
   writeWorkspace: (filePath: string, data: any) => ipcRenderer.invoke('write-workspace', filePath, data),
-  getVideoFPS(workspace: string, filePath: string): Promise<number | null> {
+  fileExists: (filePath: string) => ipcRenderer.invoke('file-exists', filePath),
+  getVideoFPS: (workspace: string, filePath: string): Promise<number | null> => {
     ffmpeg.setFfprobePath(`${workspace}/models/ffprobe`)
     return new Promise((resolve, reject) => {
       ffmpeg.ffprobe(filePath, (err, metadata) => {
@@ -47,6 +52,70 @@ contextBridge.exposeInMainWorld('workspaceAPI', {
         resolve(num / denom)
       })
     })
+  },
+  cutAndEncodeVideo: async (workdspace: string, inputFilePath: string, outputPath: string, keepRanges: [string, string, number][]) => {
+    console.log('cutting and encoding video')
+    // remove all files that start with 'segment' in the outputPath folder
+    await removeSegments(outputPath)
+
+    // segment the video
+    ffmpeg.setFfmpegPath(`${workdspace}/models/ffmpeg`)
+    const segmentFiles: string[] = []
+    for (let i = 0; i < keepRanges.length; i++) {
+      const range = keepRanges[i]
+      if (!range) 
+        continue
+      const [start, end, duration] = range
+
+      const segFile = path.join(outputPath, `segment_${i}.mp4`)
+      segmentFiles.push(segFile)
+      await new Promise<void>((resolve, reject) => {
+        ffmpeg(inputFilePath)
+          .setStartTime(start)
+          .setDuration(duration)
+          // Re-encode to ensure MP4 compatibility
+          .videoCodec('libx264')
+          .audioCodec('aac')
+          .outputOptions('-movflags', 'faststart') // for better mp4 compatibility
+          .outputOptions('-preset', 'fast')
+          .outputOptions('-crf', '23')
+          .output(segFile)
+          .on('end', () => {
+            console.log(`Segment ${i} done`)
+            resolve()
+          })
+          .on('error', (e) => {
+            console.error(`Error processing segment ${i}`)
+            reject(e)
+          })
+          .run()
+      })
+    }
+
+    console.log('All segments done')
+
+    // Concatenate the segments
+    const listFile = path.join(outputPath, 'segments.txt')
+    await fs.writeFile(listFile, segmentFiles.map(f => `file '${f}'`).join('\n'))
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg()
+        .input(listFile)
+        .inputOptions('-f', 'concat', '-safe', '0')
+        .outputOptions('-c', 'copy')
+        .output(`${outputPath}/base.mp4`)
+        .on('end', () => {
+          console.log('Concatenation done')
+          resolve()
+        })
+        .on('error', (e) => {
+          console.error('Error during concatenation')
+          reject(e)
+        })
+        .run()
+      }
+    )
+
+    await removeSegments(outputPath)
   }
 })
 

@@ -15,6 +15,8 @@ export type Project = {
   folder: string,
   filePath: string,
   createdAt: string,
+  cuts: Array<number> | null,
+  classes: Array<number> | null,
 }
 
 export type Workspace = {
@@ -45,7 +47,7 @@ export const wpStore = defineStore('wpStore', () => {
     if (workspace.value)
       selectedProject.value = workspace.value.projects.find(p => p.id === id) || null
 
-    step.value = 1
+    step.value = 2
   }
 
   return {

@@ -103,7 +103,8 @@ async function createProject(){
     name: newProjectName.value.trim(),
     folder: folder,
     filePath: videoFilePath.value || '',
-    createdAt: utils.getCurrentDataTime()
+    createdAt: utils.getCurrentDataTime(),
+    cuts: null
   }
 
   try {
@@ -113,11 +114,10 @@ async function createProject(){
   catch (e) {
     console.error('Error creating project folder:', e)
     return q.dialog({ title: 'Error', message: e instanceof Error ? e.message : String(e) })
-    
   }
   
   wp.workspace?.projects.unshift(project)
-  wp.persist()
+  await wp.persist()
 
   newProjectAlert.value = false
 }

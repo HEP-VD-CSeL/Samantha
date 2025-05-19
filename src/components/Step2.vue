@@ -13,10 +13,6 @@
           </q-tooltip>
         </q-btn>
       </div>
-      
-
-
-
     </div>
 
     <q-footer class="bg-grey-3 text-black" style="z-index:9999">
@@ -37,7 +33,6 @@ import { wpStore } from 'src/stores/wpStore'
 import { type Project } from 'src/stores/wpStore'
 import utils from 'src/utils'
 import { useQuasar, QVueGlobals } from 'quasar'
-import { electron } from 'node:process'
 
 const q: QVueGlobals = useQuasar()
 const store = appStore()

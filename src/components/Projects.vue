@@ -104,7 +104,8 @@ async function createProject(){
     folder: folder,
     filePath: videoFilePath.value || '',
     createdAt: utils.getCurrentDataTime(),
-    cuts: null
+    cuts: null,
+    classes: null,
   }
 
   try {

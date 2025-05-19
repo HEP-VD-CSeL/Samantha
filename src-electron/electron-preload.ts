@@ -174,7 +174,8 @@ contextBridge.exposeInMainWorld('sys', {
     await fs.mkdir(path.join(wpPath, 'projects'), { recursive: true })
 
     // download the following files if they don't exist
-    await checkAndDownload(modelsFolderPath, files, 'rt-detr-x.pt', 'https://github.com/ultralytics/assets/releases/download/v8.3.0/rtdetr-x.pt')
+    await checkAndDownload(modelsFolderPath, files, 'rt-detr-l.pt', 'https://github.com/ultralytics/assets/releases/download/v8.3.0/rtdetr-l.pt')
+    await checkAndDownload(modelsFolderPath, files, 'rt-detr-x-face.pt', 'https://github.com/HEP-VD-CSeL/Samantha/raw/refs/heads/main/models/rt-detr-x-face.pt')
     await checkAndDownload(modelsFolderPath, files, 'ffmpeg', 'http://static.grosjean.io/samantha/ffmpeg_osx') 
     await checkAndDownload(modelsFolderPath, files, 'ffprobe', 'http://static.grosjean.io/samantha/ffprobe_osx') 
     

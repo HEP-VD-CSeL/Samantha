@@ -6,7 +6,7 @@
       
       <q-breadcrumbs-el v-if="wp.step >= 1" @click="wp.step = 1" class="cursor-pointer" label="Video encoding" />
 
-      <q-breadcrumbs-el v-if="wp.step >= 2" @click="wp.step = 2" class="cursor-pointer" label="Prepare detection" />
+      <q-breadcrumbs-el v-if="wp.step >= 2" @click="wp.step = 2" class="cursor-pointer" label="Object detection" />
       
     </q-breadcrumbs>
     <div class="col fit column">

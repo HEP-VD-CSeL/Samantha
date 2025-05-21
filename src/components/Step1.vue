@@ -18,8 +18,7 @@
       <div style="width:100%" class="q-pa-xs">
         <p class="text-center text-subtitle2">Video encoding</p> 
         <div :class="['video-wrapper', { 'show-stripes':   ranges.some(([start, end]) => typeof start === 'number' && typeof end === 'number' && currentFrame >= start && currentFrame <= end) }]"
-          :style="{ '--progress-gradient': progressGradient }"
-          >
+          :style="{ '--progress-gradient': progressGradient }">
           <video style="border:1px solid grey; border-radius: 5px;"
             ref="videoRef"
             class="video-js vjs-default-skin"

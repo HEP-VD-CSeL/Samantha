@@ -1,8 +1,18 @@
 <template>
   <div class="col row items-center justify-center" style="">
 
-    <div style=" min-width: 350px;">
-      <p class="text-center text-subtitle2">Object detection preparation</p>
+    <q-dialog class="full-width-dialog q-pa-xl" style="width:100%" v-model="detectModal" persistent backdrop-filter="blur(4px)">
+      <div>
+        <p class="text-center text-subtitle2">Detecting objects, this may take a while...</p>
+        <div id="detection"></div>
+        <div class="text-center">
+          <q-btn class="q-mt-lg align-center" label="CANCEL DETECTION" icon="mdi-cancel" color="deep-orange" @click="cancel" />
+        </div>
+      </div>
+    </q-dialog>
+
+    <div style="min-width: 350px;">
+      <p class="text-center text-subtitle2">Object detection classes</p>
       
       <p>Please select the detection classes.</p>
 
@@ -13,6 +23,7 @@
           </q-tooltip>
         </q-btn>
       </div>
+
     </div>
 
     <q-footer class="bg-grey-3 text-black" style="z-index:9999">
@@ -20,6 +31,8 @@
         <q-btn @click="wp.step = 1" color="primary" label="Previous" />
         <q-space/>
         <q-btn :disabled="!wp.selectedProject?.classes?.length" @click="wp.step = 3" color="primary" label="Next" />
+        <q-btn @click="detect()" :disable="!wp.selectedProject?.classes?.length" color="deep-orange" label="Detect objects" class="q-ml-md" />
+
       </q-toolbar>
     </q-footer>
   </div>
@@ -33,15 +46,22 @@ import { wpStore } from 'src/stores/wpStore'
 import { type Project } from 'src/stores/wpStore'
 import utils from 'src/utils'
 import { useQuasar, QVueGlobals } from 'quasar'
+import videojs from 'video.js'
+import 'video.js/dist/video-js.css'
 
 const q: QVueGlobals = useQuasar()
 const store = appStore()
 const wp = wpStore()
+const detectModal: Ref<boolean> = ref(false)
+
+const filePath: string = `${store.workSpacePath}/projects/${wp.selectedProject?.folder}/base.mp4`
+
+let ws: WebSocket | null = null
 
 type DetectionClassMap = {
   [className: string]: {
     label: string,
-    icon: string
+    icon: string,
     select: boolean,
     classes: Array<number>,
   }
@@ -49,19 +69,94 @@ type DetectionClassMap = {
 
 const detectionClasses: Ref<DetectionClassMap> = ref({
   face: { label: 'Face', icon: 'mdi-face-recognition', select: true, classes: [-1] },
-  person: { label: 'Person', icon: 'mdi-account', select: true, classes: [1] },
-  vehicle: { label:'Bicycle, Car, Motorcycle, Airplane, Bus, Train, Truck, Boat', icon: 'mdi-car-multiple', select: false, classes: [2, 3, 4, 5, 6, 7, 8, 9] },
-  street_object: { label:'Traffic light, Fire hydrant, Stop sign, Parking meter, Bench', icon: 'mdi-city', select: false, classes: [10, 11, 12, 13, 14] },
-  animal: { label:'Bird, Cat, Dog, Horse, Sheep, Cow, Elephant, Bear, Zebra, Giraffe', icon: 'mdi-paw', select: false, classes: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25] },
-  bag: { label:'Backpack, Umbrella, Handbag, Tie, Suitcase', icon: 'mdi-bag-personal', select: false, classes: [25, 26, 27, 28, 29] },
-  sports: { label:'Frisbee, Skis, Snowboard, Sports ball, Kite, Baseball bat, Baseball glove, Skateboard, Surfboard, Tennis racket', icon: 'mdi-soccer', select: false, classes: [30, 31, 32, 33, 34, 35, 36, 37, 38, 39] },
-  tableware: { label:'Bottle, Wine glass, Cup, Fork, Knife, Spoon, Bowl', icon: 'mdi-bottle-soda-classic-outline', select: false, classes: [40, 41, 42, 43, 44, 45, 46] },
-  food: { label:'Banana, Apple, Sandwich, Orange, Broccoli, Carrot, Hot dog, Pizza, Donut, Cake', icon: 'mdi-food', select: true, classes: [47, 48, 49, 50, 51, 52, 53, 54, 55, 56] },
-  furniture: { label:'Chair, Couch, Potted plant, Bed, Dining table, Toilet', icon: 'mdi-sofa', select: false, classes: [57, 58, 59, 60, 61, 62] },
-  electronics: { label:'TV, Laptop, Mouse, Remote, Keyboard, Cell phone', icon: 'mdi-monitor', select: false, classes: [63, 64, 65, 66, 67, 68] },
-  kitchen: { label:'Microwave, Oven, Toaster, Sink, Refrigerator', icon: 'mdi-stove', select: false, classes: [69, 70, 71, 72, 73] },
-  household_items: { label:'Book, Clock, Vase, Scissors, Teddy bear, Hair drier, Toothbrush', icon: 'mdi-home', select: false, classes: [74, 75, 76, 77, 78, 79, 80] },
+  person: { label: 'Person', icon: 'mdi-account', select: true, classes: [0] },
+  vehicle: { label:'Bicycle, Car, Motorcycle, Airplane, Bus, Train, Truck, Boat', icon: 'mdi-car-multiple', select: false, classes: [1, 2, 3, 4, 5, 6, 7, 8] },
+  street_object: { label:'Traffic light, Fire hydrant, Stop sign, Parking meter, Bench', icon: 'mdi-city', select: false, classes: [9, 10, 11, 12, 13] },
+  animal: { label:'Bird, Cat, Dog, Horse, Sheep, Cow, Elephant, Bear, Zebra, Giraffe', icon: 'mdi-paw', select: false, classes: [14, 15, 16, 17, 18, 19, 20, 21, 22, 23] },
+  bag: { label:'Backpack, Umbrella, Handbag, Tie, Suitcase', icon: 'mdi-bag-personal', select: false, classes: [24, 25, 26, 27, 28] },
+  sports: { label:'Frisbee, Skis, Snowboard, Sports ball, Kite, Baseball bat, Baseball glove, Skateboard, Surfboard, Tennis racket', icon: 'mdi-soccer', select: false, classes: [29, 30, 31, 32, 33, 34, 35, 36, 37, 38] },
+  tableware: { label:'Bottle, Wine glass, Cup, Fork, Knife, Spoon, Bowl', icon: 'mdi-bottle-soda-classic-outline', select: false, classes: [39, 40, 41, 42, 43, 44, 45] },
+  food: { label:'Banana, Apple, Sandwich, Orange, Broccoli, Carrot, Hot dog, Pizza, Donut, Cake', icon: 'mdi-food', select: true, classes: [46, 47, 48, 49, 50, 51, 52, 53, 54, 55] },
+  furniture: { label:'Chair, Couch, Potted plant, Bed, Dining table, Toilet', icon: 'mdi-sofa', select: false, classes: [56, 57, 58, 59, 60, 61] },
+  electronics: { label:'TV, Laptop, Mouse, Remote, Keyboard, Cell phone', icon: 'mdi-monitor', select: false, classes: [62, 63, 64, 65, 66, 67] },
+  kitchen: { label:'Microwave, Oven, Toaster, Sink, Refrigerator', icon: 'mdi-stove', select: false, classes: [68, 69, 70, 71, 72] },
+  household_items: { label:'Book, Clock, Vase, Scissors, Teddy bear, Hair drier, Toothbrush', icon: 'mdi-home', select: false, classes: [73, 74, 75, 76, 77, 78, 79] },
 })
+
+function cancel() {
+  if (ws) {
+    ws.close()
+    ws = null
+  }
+  detectModal.value = false
+}
+
+async function detect(){
+  if (!wp.selectedProject?.classes?.length)
+    return
+
+  ws = new WebSocket('ws://localhost:3000/detect')
+
+  detectModal.value = true
+
+  ws.onmessage = (event) => {
+    // parse json data
+    if (event.data.startsWith('{')) {
+      const data = JSON.parse(event.data)
+      
+      // we don't show keepalive messages
+      if (data?.status == 'alive')
+        return
+
+      console.log(data)
+
+      if (data?.status == 'done'){
+        cancel()
+        console.log(data?.detections)
+      }
+    }
+    else {
+      // if it's not a json, it's a base64 jpg image
+      const imgId = 'detection-img'
+      let img = document.getElementById(imgId) as HTMLImageElement | null
+      if (!img) {
+        img = document.createElement('img')
+        img.id = imgId
+        img.style.width = '100%'
+        img.style.display = 'block'
+        document.getElementById('detection')?.appendChild(img)
+      }
+      
+      img.src = 'data:image/jpeg;base64,' + event.data
+    }
+  }
+
+  ws.onopen = () => {
+    console.log('Detection ws connection opened')
+    // send all the needed information to the server
+    const data = {
+      file: filePath,
+      workspace: store.workSpacePath,
+      classes: wp.selectedProject?.classes,
+    }
+    if (ws)
+      ws.send(JSON.stringify(data))
+  }
+
+  ws.onclose = () => {
+    console.log('Detection ws connection closed')
+    detectModal.value = false
+  }
+  ws.onerror = (err) => {
+    detectModal.value = false
+    console.error('WebSocket error:', err)
+    q.dialog({
+      title: 'Error',
+      message: `A WebSocket error occurred: ${err.type || err.toString()}`,
+    })
+  }
+  
+}
 
 async function selectClass(key: string){
   if (detectionClasses.value[key] == null)
@@ -82,7 +177,6 @@ async function persistClasses() {
 } 
 
 onMounted(async () => {
-
   // create the detection classes if it does not exist
   if (wp.selectedProject?.classes == null)
     await persistClasses()
@@ -95,12 +189,16 @@ onMounted(async () => {
         value.select = false
     }
   }
-  
 })
 
 
 </script>
 
 <style scoped>
-
+.q-dialog__inner > div {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  min-width: 50vw !important;
+  box-sizing: border-box;
+}
 </style>

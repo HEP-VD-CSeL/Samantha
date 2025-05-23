@@ -7,12 +7,15 @@
       <q-breadcrumbs-el v-if="wp.step >= 1" @click="wp.step = 1" class="cursor-pointer" label="Video encoding" />
 
       <q-breadcrumbs-el v-if="wp.step >= 2" @click="wp.step = 2" class="cursor-pointer" label="Object detection" />
+
+        <q-breadcrumbs-el v-if="wp.step >= 3" @click="wp.step = 3" class="cursor-pointer" label="Object selection" />
       
     </q-breadcrumbs>
     <div class="col fit column">
       <Step0 v-if="wp.step == 0" class="" />
       <Step1 v-else-if="wp.step == 1" class="" />
       <Step2 v-else-if="wp.step == 2" class="" />
+      <Step3 v-else-if="wp.step == 3" class="" />
     </div>
     
   </q-page>
@@ -30,6 +33,7 @@ import { useQuasar, QVueGlobals } from 'quasar'
 import Step0 from 'src/components/Step0.vue'
 import Step1 from 'src/components/Step1.vue'
 import Step2 from 'src/components/Step2.vue'
+import Step3 from 'src/components/Step3.vue'
 
 const q: QVueGlobals = useQuasar()
 const store = appStore()

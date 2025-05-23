@@ -30,9 +30,8 @@
       <q-toolbar>
         <q-btn @click="wp.step = 1" color="primary" label="Previous" />
         <q-space/>
-        <q-btn :disabled="!wp.selectedProject?.classes?.length" @click="wp.step = 3" color="primary" label="Next" />
+        <q-btn :disabled="!wp.selectedProject?.classes?.length || !wp.selectedProject?.detections" @click="wp.step = 3" color="primary" label="Next" />
         <q-btn @click="detect()" :disable="!wp.selectedProject?.classes?.length" color="deep-orange" label="Detect objects" class="q-ml-md" />
-
       </q-toolbar>
     </q-footer>
   </div>
@@ -108,11 +107,20 @@ async function detect(){
       if (data?.status == 'alive')
         return
 
-      console.log(data)
-
+      // detection is done, save the detections and go next
       if (data?.status == 'done'){
+        const allSelections = data?.detections
+        // add the others params for detection
+        for (const selections of allSelections) {
+          for (const selection of selections) {
+            selection['blur'] = false
+          }
+        }
+
+        wp.selectedProject!.detections = allSelections
+        wp.persist()
         cancel()
-        console.log(data?.detections)
+        wp.step = 3
       }
     }
     else {

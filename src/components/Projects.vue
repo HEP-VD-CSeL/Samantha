@@ -106,6 +106,7 @@ async function createProject(){
     createdAt: utils.getCurrentDataTime(),
     cuts: null,
     classes: null,
+    detections: null,
   }
 
   try {

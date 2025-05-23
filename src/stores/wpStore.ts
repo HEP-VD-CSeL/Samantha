@@ -9,6 +9,19 @@ function getWPPath(){
   return `${store.workSpacePath}/data.json`
 }
 
+export type Detection = {
+  id: number,
+  classid: number,
+  classname: string, 
+  positions: {
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+  },
+  blur: boolean,
+}
+
 export type Project = {
   id: string,
   name: string,
@@ -17,6 +30,7 @@ export type Project = {
   createdAt: string,
   cuts: Array<number> | null,
   classes: Array<number> | null,
+  detections: Array<Array<Detection>> | null,
 }
 
 export type Workspace = {
@@ -47,7 +61,7 @@ export const wpStore = defineStore('wpStore', () => {
     if (workspace.value)
       selectedProject.value = workspace.value.projects.find(p => p.id === id) || null
 
-    step.value = 2
+    step.value = 3
   }
 
   return {

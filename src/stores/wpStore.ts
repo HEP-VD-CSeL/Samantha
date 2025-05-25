@@ -20,6 +20,7 @@ export type Detection = {
     y2: number,
   },
   blur: boolean,
+  inpaint:boolean,
 }
 
 export type Project = {

@@ -102,10 +102,6 @@ async function detect(){
     // parse json data
     if (event.data.startsWith('{')) {
       const data = JSON.parse(event.data)
-      
-      // we don't show keepalive messages
-      if (data?.status == 'alive')
-        return
 
       // detection is done, save the detections and go next
       if (data?.status == 'done'){
@@ -114,6 +110,7 @@ async function detect(){
         for (const selections of allSelections) {
           for (const selection of selections) {
             selection['blur'] = false
+            selection['inpaint'] = false
           }
         }
 

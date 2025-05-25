@@ -5,7 +5,7 @@
         <p class="text-center text-subtitle2">Anonymization, this may take a while...</p>
         <div id="detection"></div>
         <div class="text-center">
-          <q-btn class="q-mt-lg align-center" label="CANCEL ANONYMIZATIOB" icon="mdi-cancel" color="deep-orange" @click="" />
+          <q-btn class="q-mt-lg align-center" label="CANCEL ANONYMIZATION" icon="mdi-cancel" color="deep-orange" @click="" />
         </div>
       </div>
     </q-dialog>
@@ -262,10 +262,6 @@ async function startAnonymization(){
     if (event.data.startsWith('{')) {
       const data = JSON.parse(event.data)
       
-      // we don't show keepalive messages
-      if (data?.status == 'alive')
-        return
-
       // detection is done, save the detections and go next
       if (data?.status == 'done'){
         console.log(`Anonymization done !`)

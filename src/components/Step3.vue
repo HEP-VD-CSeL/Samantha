@@ -5,7 +5,7 @@
         <p class="text-center text-subtitle2">Anonymization, this may take a while...</p>
         <div id="detection"></div>
         <div class="text-center">
-          <q-btn class="q-mt-lg align-center" label="CANCEL ANONYMIZATION" icon="mdi-cancel" color="deep-orange" @click="" />
+          <q-btn class="q-mt-lg align-center" label="CANCEL ANONYMIZATION" icon="mdi-cancel" color="deep-orange" @click="cancel" />
         </div>
       </div>
     </q-dialog>
@@ -18,13 +18,18 @@
             v-if="wp.selectedProject?.detections" v-for="(detection, index) in (wp.selectedProject?.detections[currentFrame] || []).filter(det => (wp.selectedProject?.classes || []).includes(det.classid))" dense clickable v-ripple
             class="q-pa-xs"
             :focused="detection.id == highlightedDetection?.id && detection.classid == highlightedDetection?.classid">
-            <q-item-section @click="highlightDetection(detection)">{{detection.blur ? '🚫' : '🟢'}} {{ detection.classname }} {{ detection.id }}</q-item-section>
+            <q-item-section @click="highlightDetection(detection)">{{getIcon(detection)}} {{ detection.classname }} {{ detection.id }}</q-item-section>
             <q-item-section avatar>
               <q-btn flat dense round icon="mdi-dots-vertical">
                 <q-menu>
                   <q-list style="min-width: 100px">
-                    <q-item @click="applyFilter(detection.classid, detection.id)" clickable v-close-popup>
+                    <q-item @click="applyFilter(detection.classid, detection.id, true, null)" clickable v-close-popup>
                       <q-item-section>Blur</q-item-section>
+                    </q-item>
+                  </q-list>
+                  <q-list style="min-width: 100px">
+                    <q-item @click="applyFilter(detection.classid, detection.id, null, true)" clickable v-close-popup>
+                      <q-item-section>Inpaint</q-item-section>
                     </q-item>
                   </q-list>
                   <q-list style="min-width: 100px">
@@ -79,7 +84,7 @@
       <q-toolbar>
         <q-btn @click="wp.step = 2" color="primary" label="Previous" />
         <q-space/>
-        <q-btn @click="wp.step = 3" color="primary" label="Next" :disable="!next" />
+        <q-btn @click="wp.step = 4" color="primary" label="Next" :disable="!next" />
         <q-btn @click="startAnonymization()" color="deep-orange" label="start anonymization" class="q-ml-md" />
       </q-toolbar>
     </q-footer>
@@ -133,6 +138,14 @@ function highlightDetection(detection:  Detection){
   drawDetections()
 }
 
+function getIcon(det: Detection){
+  if (det.blur)
+    return '☁️'
+  else if (det.inpaint)
+    return '🚫'
+  return '🟢'
+}
+
 function drawDetections() {
   const detections = wp.selectedProject?.detections?.[currentFrame.value] || []
   const allowedClasses = wp.selectedProject?.classes || []
@@ -152,17 +165,15 @@ function drawDetections() {
   let highlighted: Detection | null = null
   const filtered = detections.filter(det => allowedClasses.includes(det.classid))
   filtered.forEach(det => {
-    if (
-      highlightedDetection.value &&
-      det.classid === highlightedDetection.value.classid &&
-      det.id === highlightedDetection.value.id
-    ) {
+    if (highlightedDetection.value && det.classid === highlightedDetection.value.classid && det.id === highlightedDetection.value.id) {
       highlighted = det
-    } else {
+    } 
+    else {
       drawDetection(ctx, det)
     }
   })
-  if (highlighted) drawDetection(ctx, highlighted, true)
+  if (highlighted) 
+    drawDetection(ctx, highlighted, true)
 
   ctx.textAlign = 'start'
   ctx.textBaseline = 'alphabetic'
@@ -174,7 +185,7 @@ function drawDetection(ctx: CanvasRenderingContext2D, det: Detection, isHighligh
   ctx.font = '30px Arial'
   ctx.textAlign = 'start'
   ctx.textBaseline = 'alphabetic'
-  const icon = det.blur ? '🚫' : '🟢'
+  const icon = getIcon(det)
   const label = `${icon} ${det.classname} ${det.id}`
   const textWidth = ctx.measureText(label).width
   const labelX = x1 + 8
@@ -191,8 +202,8 @@ function drawDetection(ctx: CanvasRenderingContext2D, det: Detection, isHighligh
   )
 
   // Draw bounding box
-  ctx.strokeStyle = isHighlight ? '#FFD600' : (det.blur ? '#FF0000' : '#00FF00')
-  ctx.lineWidth = isHighlight ? 6 : 4
+  ctx.strokeStyle = isHighlight ? '#FFD600' : (det.inpaint ? '#FF4136' : (det.blur ? '#0074D9' : '#00FF00'));
+  ctx.lineWidth = isHighlight ? 8 : 6
   ctx.strokeRect(x1, y1, x2 - x1, y2 - y1)
 
   // Draw label text
@@ -218,12 +229,6 @@ function onVideoFrame(now: number, metadata: VideoFrameCallbackMetadata) {
   el.requestVideoFrameCallback(onVideoFrame)
 }
 
-// go to a specific frame
-function goToFrame(frame: number) {
-  if (player)
-    player.currentTime(Math.min(frame / fps, player.duration()))
-}
-
 function togglePlay() {
   const el = player || videoRef.value
   if (el) {
@@ -240,11 +245,37 @@ function skipFrame(nbFrames: number, direction: "forward"|"backward") {
     el.currentTime = Math.min(el.currentTime + (direction == 'forward' ? nbFrames : -nbFrames) / fps, el.duration)
 }
 
-function applyFilter(classId: number, detId: number) {
+function applyFilter(classId: number, detId: number, blur: boolean|null = null, inpaint: boolean|null = null) {
   for (const detections of wp.selectedProject?.detections || []) {
     for (const detection of detections) {
-      if (detection.classid === classId && detection.id === detId)
-        detection.blur = !detection.blur
+      if (detection.classid === classId && detection.id === detId){
+        // we want to set the blur
+        if (blur !== null) {
+          detection.blur = blur
+          detection.inpaint = false
+        }
+        // we want to set the inpaint
+        else if (inpaint !== null) {
+          detection.inpaint = inpaint
+          detection.blur = false
+        }
+        // no filter was specified, toggle the current state
+        else {
+          // if none is selected, we blur
+          if (!detection.blur && !detection.inpaint){
+            detection.blur = true
+            detection.inpaint = false
+          }
+          else if (detection.blur && !detection.inpaint){
+            detection.blur = false
+            detection.inpaint = true
+          }
+          else {
+            detection.blur = false
+            detection.inpaint = false
+          }
+        }
+      }
     }
   }
   drawDetections()
@@ -265,21 +296,23 @@ async function startAnonymization(){
       // detection is done, save the detections and go next
       if (data?.status == 'done'){
         console.log(`Anonymization done !`)
+        wp.step = 4
       }
     }
     else {
       // if it's not a json, it's a base64 jpg image
-      const imgId = 'detection-img'
-      let img = document.getElementById(imgId) as HTMLImageElement | null
-      if (!img) {
-        img = document.createElement('img')
-        img.id = imgId
+      const detectionDiv = document.getElementById('detection')
+      if (detectionDiv) {
+        // Remove all previous images
+        detectionDiv.innerHTML = ''
+        // Add the new image
+        const img = document.createElement('img')
+        img.id = 'detection-img'
         img.style.width = '100%'
         img.style.display = 'block'
-        document.getElementById('detection')?.appendChild(img)
+        img.src = 'data:image/jpeg;base64,' + event.data
+        detectionDiv.appendChild(img)
       }
-      
-      img.src = 'data:image/jpeg;base64,' + event.data
     }
   }
 
@@ -289,6 +322,7 @@ async function startAnonymization(){
     const data = {
       file: filePath,
       workspace: store.workSpacePath,
+      name: wp.selectedProject?.name,
       detections: wp.selectedProject?.detections,
     }
     if (ws)
@@ -310,14 +344,24 @@ async function startAnonymization(){
   }
 }
 
+function cancel() {
+  if (ws) {
+    ws.close()
+    ws = null
+  }
+  anonymizationModal.value = false
+}
+
 onMounted(async () => {
   // get video framerate
   try {
     fps = await window.workspaceAPI.getVideoFPS(store.workSpacePath || '', filePath) || 25
     console.log('FPS:', fps)
+
+    next.value = await window.workspaceAPI.fileExists(`${store.workSpacePath}/projects/${wp.selectedProject?.folder}/final.mp4`)
   }
   catch (e) {
-    console.error('Error getting video framerate:', e)
+    console.error(`Error: ${e}`)
   }
 
   const el = videoRef.value as HTMLVideoElement

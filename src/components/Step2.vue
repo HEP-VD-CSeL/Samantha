@@ -122,17 +122,18 @@ async function detect(){
     }
     else {
       // if it's not a json, it's a base64 jpg image
-      const imgId = 'detection-img'
-      let img = document.getElementById(imgId) as HTMLImageElement | null
-      if (!img) {
-        img = document.createElement('img')
-        img.id = imgId
+      const detectionDiv = document.getElementById('detection')
+      if (detectionDiv) {
+        // Remove all previous images
+        detectionDiv.innerHTML = ''
+        // Add the new image
+        const img = document.createElement('img')
+        img.id = 'detection-img'
         img.style.width = '100%'
         img.style.display = 'block'
-        document.getElementById('detection')?.appendChild(img)
+        img.src = 'data:image/jpeg;base64,' + event.data
+        detectionDiv.appendChild(img)
       }
-      
-      img.src = 'data:image/jpeg;base64,' + event.data
     }
   }
 

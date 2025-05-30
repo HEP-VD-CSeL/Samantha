@@ -62,7 +62,7 @@ export const wpStore = defineStore('wpStore', () => {
     if (workspace.value)
       selectedProject.value = workspace.value.projects.find(p => p.id === id) || null
 
-    step.value = 3
+    step.value = 4
   }
 
   return {

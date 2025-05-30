@@ -9,6 +9,8 @@ import uvicorn
 import json
 import base64
 import gc
+import os
+import subprocess
 
 print("Starting AI worker...")
 app = FastAPI()
@@ -20,8 +22,6 @@ device = (
   else 'cpu'
 )
 print(f"Device detected: {device}")
-
-display_opencv = False
 
 async def detect(ws, workspace, file, classes):
   # models path
@@ -55,8 +55,8 @@ async def detect(ws, workspace, file, classes):
     frame_detections = []
 
     # run the detection models asynchronously
-    results_face = asyncio.to_thread(model_face.track, frame, persist=True, conf=0.1, iou=0.3, tracker=tracker_cfg)
-    results = asyncio.to_thread(model_object.track, frame, persist=True, conf=0.1, iou=0.3, tracker=tracker_cfg)
+    results_face = asyncio.to_thread(model_face.track, frame, persist=True, conf=0.3, iou=0.45, tracker=tracker_cfg)
+    results = asyncio.to_thread(model_object.track, frame, persist=True, conf=0.5, iou=0.5, tracker=tracker_cfg)
 
 
     # Face detection + tracking
@@ -92,6 +92,8 @@ async def detect(ws, workspace, file, classes):
 
     # Append current frame detections to the list
     detections_per_frame.append(frame_detections)
+
+    # draw the bouding boxes
     for detection in frame_detections:
       # do not draw classes not in the selected list
       if classes is not None and detection['classid'] not in classes:
@@ -102,9 +104,6 @@ async def detect(ws, workspace, file, classes):
       color = (0, 255, 0)
       cv2.rectangle(frame, (det["x1"], det["y1"]), (det["x2"], det["y2"]), color, 2)
       cv2.putText(frame, label, (det["x1"], det["y1"]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-
-    if display_opencv:
-      cv2.imshow('RT-DETR + ByteTrack', frame)
 
     # send image to client
     await ws.send_text(base64.b64encode(cv2.imencode('.jpg', frame)[1]).decode('utf-8'))
@@ -194,19 +193,28 @@ def prepare_img_and_mask(image, mask, device, pad_out_to_modulo=8, scale_factor=
 
     return out_image, out_mask
 
-async def anonymize(ws, workspace, file, detections_list):
+async def anonymize(ws, workspace, target_folder, file, detections_list):
   # video loop
   cap = cv2.VideoCapture(file)
   if not cap.isOpened():
     print("Error opening video file")
     exit()
 
+  # sam model
   fast_sam = FastSAM(f'{workspace}/models/FastSAM-x.pt')
   fast_sam.to(device)
   # inpainting model
   model_inpainting = torch.jit.load(f'{workspace}/models/big-lama.pt', map_location=device)
   model_inpainting.eval()
   model_inpainting.to(device)
+
+  # initialize video writer
+  fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # or 'XVID', 'avc1', etc.
+  fps = cap.get(cv2.CAP_PROP_FPS)
+  width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+  height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+  out_video_path = os.path.join(target_folder, "final.mp4")
+  out = cv2.VideoWriter(out_video_path, fourcc, fps, (width, height))
 
   while True:
     ok, frame = cap.read()
@@ -219,45 +227,47 @@ async def anonymize(ws, workspace, file, detections_list):
     # run FastSAM on every detection
     detections = detections_list.pop(0)
     for detection in detections:
-      if detection['blur'] or detection['inpaint']:
+      if not detection['blur'] and not detection['inpaint']:
+        continue
           
-        # Get bounding box
-        x1, y1, x2, y2 = map(int, [
-          detection['positions']['x1'],
-          detection['positions']['y1'], 
-          detection['positions']['x2'], 
-          detection['positions']['y2']]
-        )
+      # Get bounding box
+      x1, y1, x2, y2 = map(int, [
+        detection['positions']['x1'],
+        detection['positions']['y1'], 
+        detection['positions']['x2'], 
+        detection['positions']['y2']]
+      )
 
-        # Run FastSAM with bbox prompt on the full frame
-        # results = fast_sam(frame, bboxes=[x1, y1, x2, y2], device=device, conf=0.0, iou=0.9)
-        results = await asyncio.to_thread(fast_sam, frame, bboxes=[x1, y1, x2, y2], device=device, conf=0.0, iou=0.9)
-        if isinstance(results, list):
-              results = results[0]
-        if results.masks is None:
-              continue
-
-        # Get the mask as a numpy array (shape: [num_masks, h, w])
-        masks_np = results.masks.data.cpu().numpy()
-        if masks_np.shape[0] == 0:
+      # Run FastSAM with bbox prompt on the full frame
+      # results = fast_sam(frame, bboxes=[x1, y1, x2, y2], device=device, conf=0.0, iou=0.9)
+      results = await asyncio.to_thread(fast_sam, frame, bboxes=[x1, y1, x2, y2], device=device, conf=0.0, iou=0.9)
+      if isinstance(results, list):
+            results = results[0]
+      if results.masks is None:
             continue
-        mask = masks_np[0]  # Use the first mask
 
-        # Resize mask to frame size if needed
-        if mask.shape != frame.shape[:2]:
-          mask = cv2.resize(mask, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
+      # Get the mask as a numpy array (shape: [num_masks, h, w])
+      masks_np = results.masks.data.cpu().numpy()
+      if masks_np.shape[0] == 0:
+          continue
+      mask = masks_np[0]  # Use the first mask
 
-        # we skip the blur for now
-        # Elegant blur anonymization
+      # Resize mask to frame size if needed
+      if mask.shape != frame.shape[:2]:
+        mask = cv2.resize(mask, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
+
+      if detection['blur']:
         mask_bool = mask > 0.1  # Use a reasonable threshold
         blurred = cv2.GaussianBlur(frame, (81, 81), 0)
         frame[mask_bool] = blurred[mask_bool]
-
-        """
+      
+      elif detection['inpaint']:
         # Make the mask binary and dilate for stronger anonymization
         mask_bin = (mask > 0.1).astype(np.uint8) * 255
         kernel = np.ones((21, 21), np.uint8)  # You can increase for more coverage
         mask_bin = cv2.dilate(mask_bin, kernel, iterations=1)
+        # Feather the mask edges for smoother inpainting
+        mask_bin = cv2.GaussianBlur(mask_bin, (15, 15), 0)
 
         # Convert frame and mask to PIL Images
         frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -272,26 +282,39 @@ async def anonymize(ws, workspace, file, detections_list):
             inpainted_np = np.clip(inpainted_np * 255, 0, 255).astype(np.uint8)
 
         inpainted_bgr = cv2.cvtColor(inpainted_np, cv2.COLOR_RGB2BGR)
-        frame[mask_bin > 0] = inpainted_bgr[mask_bin > 0]
-        """
-        """
-        # draw the bounding box
-        color = (0, 255, 0) if not detection.get('blur', False) else (0, 0, 255)  # Green for normal, Red for blurred
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-        label = f"{detection['classname']} {detection['id']}"
-        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-        """
+        frame[mask_bin > 0] = inpainted_bgr[mask_bin > 0]  
 
-        # send image to client
-        await ws.send_text(base64.b64encode(cv2.imencode('.jpg', frame)[1]).decode('utf-8'))
-    if display_opencv:
-      cv2.imshow('RT-DETR + ByteTrack', frame)
+      # send image to client
+      await ws.send_text(base64.b64encode(cv2.imencode('.jpg', frame)[1]).decode('utf-8'))
     
+    # write the frame to the output video
+    out.write(frame)
     
-
     if cv2.waitKey(1) == 27:   # ESC
       break
 
+  
+  # add the audio to the video as it has no audio track yet
+  out.release() # start by releasing the video writer
+
+  # encode to a temporary video file
+  temp_path = os.path.join(target_folder, "temp_final.mp4")
+  cmd = [
+      "ffmpeg", "-y",
+      "-i", out_video_path,
+      "-i", file,
+      "-map", "0:v:0",
+      "-map", "1:a:0",
+      "-c:v", "libx264",
+      "-preset", "fast",
+      "-crf", "23",
+      "-c:a", "aac",
+      temp_path
+  ]
+  subprocess.run(cmd, check=True)
+  os.replace(temp_path, out_video_path)
+
+  # release resources
   cap.release()
   cv2.destroyAllWindows()
   cv2.waitKey(1)
@@ -346,9 +369,16 @@ async def detect_endpoint(ws: WebSocket):
     workspace = data.get("workspace")
     file = data.get("file")
     detections = data.get("detections")
+    name = data.get("name")
+    target_folder = f"{workspace}/projects/{name}"
+    
+    final_file = os.path.join(target_folder, "final.mp4")
+    if os.path.exists(final_file):
+      os.remove(final_file)
 
     # Call the anonymization function
-    await anonymize(ws=ws, workspace=workspace, file=file, detections_list=detections)
+    await anonymize(ws=ws, workspace=workspace, target_folder=target_folder, file=file, detections_list=detections)
+    await ws.send_text(json.dumps({ "status": "done" }))
     print("Anonymization finished.")
 
     await ws.close()
@@ -359,4 +389,4 @@ async def detect_endpoint(ws: WebSocket):
     await ws.close()
 
 if __name__ == "__main__": 
-  uvicorn.run("main:app", host="0.0.0.0", port=3000, ws_ping_interval=1, ws_ping_timeout=300)
+  uvicorn.run("main:app", host="0.0.0.0", port=3000, ws_ping_interval=1, ws_ping_timeout=3600)

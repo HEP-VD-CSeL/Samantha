@@ -8,7 +8,9 @@
 
       <q-breadcrumbs-el v-if="wp.step >= 2" @click="wp.step = 2" class="cursor-pointer" label="Object detection" />
 
-        <q-breadcrumbs-el v-if="wp.step >= 3" @click="wp.step = 3" class="cursor-pointer" label="Object selection" />
+      <q-breadcrumbs-el v-if="wp.step >= 3" @click="wp.step = 3" class="cursor-pointer" label="Object selection" />
+
+      <q-breadcrumbs-el v-if="wp.step >= 4" @click="wp.step = 3" class="cursor-pointer" label="Final result" />
       
     </q-breadcrumbs>
     <div class="col fit column">
@@ -16,6 +18,7 @@
       <Step1 v-else-if="wp.step == 1" class="" />
       <Step2 v-else-if="wp.step == 2" class="" />
       <Step3 v-else-if="wp.step == 3" class="" />
+      <Step4 v-else-if="wp.step == 4" class="" />
     </div>
     
   </q-page>
@@ -34,6 +37,7 @@ import Step0 from 'src/components/Step0.vue'
 import Step1 from 'src/components/Step1.vue'
 import Step2 from 'src/components/Step2.vue'
 import Step3 from 'src/components/Step3.vue'
+import Step4 from 'src/components/Step4.vue'
 
 const q: QVueGlobals = useQuasar()
 const store = appStore()

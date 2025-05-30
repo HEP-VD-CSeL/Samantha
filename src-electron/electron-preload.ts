@@ -121,11 +121,10 @@ contextBridge.exposeInMainWorld('workspaceAPI', {
 
 // get system information
 contextBridge.exposeInMainWorld('sys', {
+  openFolder: (folderPath: string) => ipcRenderer.send('open-folder', folderPath),
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
   pickFile: () => ipcRenderer.invoke('pick-file'),
-  deleteFolder: async (folderPath: string) => {
-    await fs.rm(folderPath, { recursive: true, force: true })
-  },
+  deleteFolder: async (folderPath: string) => await fs.rm(folderPath, { recursive: true, force: true }),
   createFolder: async (folderPath: string) => {
     try {
       await fs.access(folderPath)

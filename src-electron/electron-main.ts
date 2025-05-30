@@ -1,4 +1,4 @@
-import { app, ipcMain, BrowserWindow, dialog } from 'electron';
+import { app, ipcMain, BrowserWindow, dialog, shell } from 'electron';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url'
@@ -74,6 +74,10 @@ ipcMain.on('setup-progress', (event, message) => {
   if (mainWindow) 
     mainWindow.webContents.send('setup-progress', message);
 });
+
+ipcMain.on('open-folder', (event, folderPath) => {
+  shell.openPath(folderPath)
+})
 
 ipcMain.handle('download-models', async (_event, dest: string, url: string) => {
   const response = await axios.get(url, { responseType: 'stream' })

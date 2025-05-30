@@ -29,6 +29,7 @@ export declare global {
         keepRanges: [string, string, number][]) => Promise<void>;
     };
     sys: {
+      openFolder: (folderPath: string) => Promise<void>,
       pickFolder: () => Promise<string | null>,
       pickFile: () => Promise<string | null>,
       deleteFolder: (folderPath: string) => Promise<void>,

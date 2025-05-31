@@ -12,7 +12,7 @@ import gc
 import os
 import subprocess
 
-print("Starting AI worker...")
+print("Starting AI worker...") 
 app = FastAPI()
 
 # device selection

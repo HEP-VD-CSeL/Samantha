@@ -10,13 +10,6 @@
                 <q-icon name="mdi-file-multiple" />
               </q-item-section>
             </q-item>
-
-            <q-item @click="store.openTab('console')" :style="store.tab == 'console' ? `border-left:3px solid #1976D2`:``" :active="store.tab == 'console'" clickable v-ripple>
-              <q-item-section avatar>
-                <q-icon name="mdi-console" />
-              </q-item-section>
-            </q-item>
-
             <q-separator />
           </q-list>
         </q-scroll-area>
@@ -58,24 +51,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeMount, watch } from 'vue'
+import { ref } from 'vue'
 import { type Ref } from 'vue'
 import { appStore } from 'stores/appStore'
 import { wpStore } from 'src/stores/wpStore'
 import SystemRequirements from 'src/components/SystemRequirements.vue'
 import WorkSpace from 'src/components/WorkSpace.vue'
 import Projects from 'src/components/Projects.vue'
-import Logs from 'src/components/Logs.vue'
 import NoProject from 'src/components/NoProject.vue'
 import Project from 'src/components/Project.vue'
 
 const store = appStore()
 const wp = wpStore()
 const drawer: Ref<boolean> = ref(true)
-
-
-onMounted(() => {
-  //store.appReady()
-})
 
 </script>

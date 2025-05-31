@@ -59,6 +59,7 @@ async function createWindow() {
 
 void app.whenReady().then(createWindow);
 
+// pick a folder from the filesystem
 ipcMain.handle('pick-folder', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory'], 
@@ -70,22 +71,25 @@ ipcMain.handle('pick-folder', async () => {
   return result.filePaths[0] 
 })
 
+// keep the user informed about the setup progress
 ipcMain.on('setup-progress', (event, message) => {
   if (mainWindow) 
-    mainWindow.webContents.send('setup-progress', message);
+    mainWindow.webContents.send('setup-progress', message)
 });
 
+// open a folder in the system file explorer
 ipcMain.on('open-folder', (event, folderPath) => {
   shell.openPath(folderPath)
 })
 
+// download models from a given URL and save to a destination path
 ipcMain.handle('download-models', async (_event, dest: string, url: string) => {
   const response = await axios.get(url, { responseType: 'stream' })
   await new Promise<void>((resolve, reject) => {
-    const stream = createWriteStream(dest);
-    response.data.pipe(stream);
-    stream.on('finish', resolve);
-    stream.on('error', reject);
+    const stream = createWriteStream(dest)
+    response.data.pipe(stream)
+    stream.on('finish', resolve)
+    stream.on('error', reject)
   })
 
   // make the files executable
@@ -94,25 +98,36 @@ ipcMain.handle('download-models', async (_event, dest: string, url: string) => {
   return { success: true }
 })
 
+// read file and parse as JSON
 ipcMain.handle('read-workspace', async (_event, filePath: string) => {
   const data = await fs.readFile(filePath, 'utf-8')
   return JSON.parse(data)
-});
+})
 
+// write 
 ipcMain.handle('write-workspace', async (_event, filePath: string, data: any) => {
-  await fs.writeFile(filePath, data, 'utf-8');
-  return true;
-});
-
-ipcMain.handle('file-exists', async (_event, filePath: string) => {
   try {
-    await fs.access(filePath)
+    await fs.writeFile(filePath, data, 'utf-8')
     return true
-  } catch {
+  }
+  catch (err){
+    console.error('Error writing workspace:', err)
     return false
   }
 })
 
+// check if a file exists on the filesystem
+ipcMain.handle('file-exists', async (_event, filePath: string) => {
+  try {
+    await fs.access(filePath)
+    return true
+  } 
+  catch {
+    return false
+  }
+})
+
+// open file explorer and select a video file
 ipcMain.handle('pick-file', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile'],
@@ -121,9 +136,9 @@ ipcMain.handle('pick-file', async () => {
     ]
   })
   if (result.canceled) 
-    return null;
-  return result.filePaths[0];
-});
+    return null
+  return result.filePaths[0]
+})
 
 app.on('window-all-closed', () => {
   if (platform !== 'darwin') {

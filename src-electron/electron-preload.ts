@@ -6,8 +6,8 @@ import path from 'node:path'
 import { type Workspace } from 'src/stores/wpStore'
 import utils from 'src/utils'
 import ffmpeg from 'fluent-ffmpeg'
-import ffprobeStatic from 'ffprobe-static'
 
+// download models if they don't exist
 async function checkAndDownload(modelsFolderPath: string, files: string[], file: string, url: string) {
   if (!files.includes(file)) {
     ipcRenderer.send('setup-progress', `Downloading ${file}...`)
@@ -18,10 +18,14 @@ async function checkAndDownload(modelsFolderPath: string, files: string[], file:
   }
 }
 
+// remove all segments (video cuts) from the outputPath folder
 async function removeSegments(outputPath: string) {
+  const segments = []
   for (const file of await fs.readdir(outputPath))
     if (file.startsWith('segment')) 
-      await fs.rm(path.join(outputPath, file))
+      segments.push(fs.rm(path.join(outputPath, file)))
+
+  await Promise.all(segments)
 }
 
 contextBridge.exposeInMainWorld('electron', {
@@ -32,11 +36,11 @@ contextBridge.exposeInMainWorld('electron', {
 })
 
 contextBridge.exposeInMainWorld('workspaceAPI', {
-  readWorkspace: (filePath: string) => ipcRenderer.invoke('read-workspace', filePath),
-  writeWorkspace: (filePath: string, data: any) => ipcRenderer.invoke('write-workspace', filePath, data),
+  readWorkspace: (filePath: string) => ipcRenderer.invoke('read-workspace', path.join(filePath, 'data.json')),
+  writeWorkspace: (filePath: string, data: any) => ipcRenderer.invoke('write-workspace', path.join(filePath, 'data.json'), data),
   fileExists: (filePath: string) => ipcRenderer.invoke('file-exists', filePath),
   getVideoFPS: (workspace: string, filePath: string): Promise<number | null> => {
-    ffmpeg.setFfprobePath(`${workspace}/models/ffprobe`)
+    ffmpeg.setFfprobePath(path.join(workspace, 'models', 'ffprobe'))
     return new Promise((resolve, reject) => {
       ffmpeg.ffprobe(filePath, (err, metadata) => {
         if (err) 
@@ -59,8 +63,10 @@ contextBridge.exposeInMainWorld('workspaceAPI', {
     await removeSegments(outputPath)
 
     // segment the video
-    ffmpeg.setFfmpegPath(`${workdspace}/models/ffmpeg`)
+    ffmpeg.setFfmpegPath(path.join(workdspace, 'models', 'ffmpeg'))
     const segmentFiles: string[] = []
+    
+    // loop through the keepRanges and create video segments
     for (let i = 0; i < keepRanges.length; i++) {
       const range = keepRanges[i]
       if (!range) 
@@ -94,7 +100,7 @@ contextBridge.exposeInMainWorld('workspaceAPI', {
 
     console.log('All segments done')
 
-    // Concatenate the segments
+    // Concatenate the segments into a single video file
     const listFile = path.join(outputPath, 'segments.txt')
     await fs.writeFile(listFile, segmentFiles.map(f => `file '${f}'`).join('\n'))
     await new Promise<void>((resolve, reject) => {
@@ -102,7 +108,7 @@ contextBridge.exposeInMainWorld('workspaceAPI', {
         .input(listFile)
         .inputOptions('-f', 'concat', '-safe', '0')
         .outputOptions('-c', 'copy')
-        .output(`${outputPath}/base.mp4`)
+        .output(path.join(outputPath, 'base.mp4'))
         .on('end', () => {
           console.log('Concatenation done')
           resolve()
@@ -115,6 +121,7 @@ contextBridge.exposeInMainWorld('workspaceAPI', {
       }
     )
 
+    // Remove the segments
     await removeSegments(outputPath)
   }
 })
@@ -130,7 +137,8 @@ contextBridge.exposeInMainWorld('sys', {
       await fs.access(folderPath)
       // If no error, the folder exists
       throw new Error('This project already exists')
-    } catch (err: any) {
+    } 
+    catch (err: any) {
       // Only create the folder if the error is "not exists"
       if (err && err.code === 'ENOENT') {
         // Folder does not exist, create it
@@ -157,7 +165,6 @@ contextBridge.exposeInMainWorld('sys', {
       ipcRenderer.send('setup-progress', 'Creating data file...')
       const baseData = {
         projects: [],
-        logs: [`${utils.getCurrentDataTime()}: Creating new workspace at ${wpPath}`],
       } as Workspace
       await fs.writeFile(dataFilePath, JSON.stringify(baseData), 'utf-8') // Create an empty JSON file
     }
@@ -179,10 +186,6 @@ contextBridge.exposeInMainWorld('sys', {
     await checkAndDownload(modelsFolderPath, files, 'big-lama.pt', 'https://github.com/enesmsahin/simple-lama-inpainting/releases/download/v0.1.0/big-lama.pt')
     await checkAndDownload(modelsFolderPath, files, 'ffmpeg', 'http://static.grosjean.io/samantha/ffmpeg_osx') 
     await checkAndDownload(modelsFolderPath, files, 'ffprobe', 'http://static.grosjean.io/samantha/ffprobe_osx') 
-    
-
-
-    // download ffmpeg if it doesn't exist
 
     console.log(`Setup DONE`);
   },
@@ -227,7 +230,8 @@ contextBridge.exposeInMainWorld('sys', {
         const mpsOutput = execSync('system_profiler SPDisplaysDataType | grep "Metal"', { encoding: 'utf-8' });
         return { mps: mpsOutput.includes('Metal'), name: 'Metal-compatible GPU', memory: 'Not available' };
       }
-    } catch (error) {
+    } 
+    catch (error) {
       return { cuda: false, mps: false, name: 'Unknown', memory: 'Unknown' };
     }
   },

@@ -2,12 +2,9 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import { appStore } from 'stores/appStore'
+import path from 'path'
 
 const store = appStore()
-
-function getWPPath(){
-  return `${store.workSpacePath}/data.json`
-}
 
 export type Detection = {
   id: number,
@@ -20,7 +17,7 @@ export type Detection = {
     y2: number,
   },
   blur: boolean,
-  inpaint:boolean,
+  inpaint: boolean,
 }
 
 export type Project = {
@@ -35,7 +32,6 @@ export type Project = {
 }
 
 export type Workspace = {
-  logs: Array<string>,
   projects: Array<Project>,
 }
 
@@ -46,12 +42,12 @@ export const wpStore = defineStore('wpStore', () => {
   const step: Ref<number> = ref(0)
 
   async function loadWorkspace() {
-    const data = await window.workspaceAPI.readWorkspace(getWPPath())
+    const data = await window.workspaceAPI.readWorkspace(store.workSpacePath || '')
     workspace.value = data
   }
 
   async function persist(){
-    await window.workspaceAPI.writeWorkspace(getWPPath(), JSON.stringify(workspace.value))
+    await window.workspaceAPI.writeWorkspace(store.workSpacePath || '', JSON.stringify(workspace.value))
   }
 
   function selectProjectById(id: string|null) {
@@ -62,7 +58,7 @@ export const wpStore = defineStore('wpStore', () => {
     if (workspace.value)
       selectedProject.value = workspace.value.projects.find(p => p.id === id) || null
 
-    step.value = 4
+    step.value = 0
   }
 
   return {

@@ -62,7 +62,7 @@ void app.whenReady().then(createWindow);
 // pick a folder from the filesystem
 ipcMain.handle('pick-folder', async () => {
   const result = await dialog.showOpenDialog({
-    properties: ['openDirectory'], 
+    properties: ['openDirectory', 'createDirectory'], 
   })
 
   if (result.canceled) 

@@ -78,9 +78,7 @@ async function prepareWorkspace() {
     // load wp 
     wp.loadWorkspace()
 
-    setTimeout(() => {
-      store.appReady()
-    }, 1)
+    store.appReady()
   }
   catch(err){
     q.dialog({

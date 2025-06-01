@@ -5,14 +5,15 @@ import type { Ref } from 'vue'
 export const appStore = defineStore('appStore', () => {
   const ready: Ref<boolean> = ref(false)
   
-  const sysOK: Ref<boolean> = ref(true)
+  const sysOK: Ref<boolean> = ref(false)
 
-  const workSpacePath: Ref<string|null> = ref(null)
+  // /Users/marcel/samantha
+  const workSpacePath: Ref<string|null> = ref('/Users/marcel/samantha')
 
   const splitter: Ref<number> = ref(0)
   const upperLimit: Ref<number> = ref(0)
 
-  const tab: Ref<"projects"|"console"|null> = ref(null)
+  const tab: Ref<"projects"|null> = ref(null)
 
   function appReady(){
     console.log('appReady')
@@ -23,7 +24,7 @@ export const appStore = defineStore('appStore', () => {
   }
 
   let oldTabSize = 0
-  function openTab(tabName: "projects"|"console"){
+  function openTab(tabName: "projects"){
     if (tab.value == null) {
       tab.value = tabName
       upperLimit.value = 100
@@ -34,9 +35,6 @@ export const appStore = defineStore('appStore', () => {
       tab.value = null
       splitter.value = 0
       upperLimit.value = 0
-    }
-    else if (tab.value != tabName) {
-      tab.value = tabName
     }
   }
 

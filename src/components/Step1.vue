@@ -16,7 +16,7 @@
     </div>
     <div class="row items-center justify-center" style="flex:1;">
       <div style="width:100%" class="q-pa-xs">
-        <p class="text-center text-subtitle2">Video encoding</p> 
+        <p class="text-center text-subtitle2">Cut and encode video</p> 
         <div :class="['video-wrapper', { 'show-stripes':   ranges.some(([start, end]) => typeof start === 'number' && typeof end === 'number' && currentFrame >= start && currentFrame <= end) }]"
           :style="{ '--progress-gradient': progressGradient }">
           <video style="border:1px solid grey; border-radius: 5px;"
@@ -47,7 +47,7 @@
         </div>
       </div>
     </div>
-    <q-footer class="bg-grey-3 text-black" style="z-index:9999">
+    <q-footer elevated class="bg-dark text-black" style="z-index:9999">
       <q-toolbar>
         <q-btn @click="wp.step = 0" color="primary" label="Previous" />
         <q-space/>
@@ -117,7 +117,7 @@ function cut(frame: number){
   persistCuts()
 }
 
-async function persistCuts(){
+function persistCuts(){
   wp.selectedProject!.cuts = cuts.value
   wp.persist()
 }
@@ -165,6 +165,7 @@ function togglePlay() {
       el.play()
   }
 }
+
 function skipFrame(nbFrames: number, direction: "forward"|"backward") {
   const el = videoRef.value as HTMLVideoElement
   if (el && typeof el.currentTime === 'number') 
@@ -210,8 +211,8 @@ async function encode(){
   try {
     await window.workspaceAPI.cutAndEncodeVideo(
       store.workSpacePath || '',
-      wp.selectedProject?.filePath || '',
-      `${store.workSpacePath}/projects/${wp.selectedProject?.folder}` || '', 
+      wp.selectedProject?.folder || '',
+      wp.selectedProject?.filePath || '', 
       rangesTimes,
     )
   }
@@ -224,7 +225,7 @@ async function encode(){
   }
 
   // persist the cuts
-  await persistCuts()
+  persistCuts()
 
   next.value = true
 
@@ -247,7 +248,7 @@ onMounted(async () => {
   cuts.value = wp.selectedProject?.cuts || []
   
   // check if the video has already been encoded
-  next.value = await window.workspaceAPI.fileExists(`${store.workSpacePath}/projects/${wp.selectedProject?.folder}/base.mp4`)
+  next.value = await window.workspaceAPI.fileExists(store.workSpacePath || '', wp.selectedProject?.folder || '')
 
   // video js player initialization without controls
   player = videojs(videoRef.value, { 

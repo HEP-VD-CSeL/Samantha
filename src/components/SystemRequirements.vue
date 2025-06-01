@@ -102,8 +102,14 @@ onMounted(() => {
   if (gpu.mps || (gpu.cuda && gpu.memory >= 12))
     okGPU.value = true
 
-  if (okCPU.value && okMemory.value && okGPU.value)
+  if (okCPU.value && okMemory.value && okGPU.value){
     okSystem.value = true 
+
+    // automatically move to the next step
+    setTimeout(() => {
+      store.sysOK = true
+    }, 1)
+  }
 });
 
 </script>

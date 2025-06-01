@@ -1,10 +1,10 @@
 <template>
-  <div class="col row items-center justify-center" style="border:1px solid red">
+  <div class="col row items-center justify-center">
     <div style="width:100%; max-width: 800px;">
       <div>
         <p class="text-center text-subtitle2">Video:{{ wp.selectedProject?.filePath }}</p> 
         <div v-if="next">
-          <video style="border:1px solid grey; border-radius: 5px;"
+          <video
             ref="videoRef"
             class="video-js vjs-default-skin"
             controls
@@ -21,7 +21,7 @@
         </div>
       </div>
     </div>
-    <q-footer class="bg-grey-3 text-black">
+    <q-footer class="bg-dark text-black" elevated>
       <q-toolbar>
         <q-space/>
         <q-btn @click="wp.step = 1" color="primary" label="Next" :disable="!next" />

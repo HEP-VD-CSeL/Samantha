@@ -20,12 +20,12 @@ export declare global {
     workspaceAPI: {
       readWorkspace: (filePath: string) => Promise<any>;
       writeWorkspace: (filePath: string, data: any) => Promise<void>;
-      fileExists: (filePath: string) => Promise<boolean>;
+      fileExists: (projectPath: string, projectName: string) => Promise<boolean>;
       getVideoFPS: (workspace: string, filePath: string) => Promise<number | null>;
       cutAndEncodeVideo: (
         workspace: string, 
+        projectName: string,
         inputFilePath: string, 
-        outputPath: string,
         keepRanges: [string, string, number][]) => Promise<void>;
     };
     sys: {

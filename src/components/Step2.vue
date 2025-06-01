@@ -3,7 +3,7 @@
 
     <q-dialog class="full-width-dialog q-pa-xl" style="width:100%" v-model="detectModal" persistent backdrop-filter="blur(4px)">
       <div>
-        <p class="text-center text-subtitle2">Detecting objects, this may take a while...</p>
+        <p class="text-center text-subtitle2">Detecting objects, this may take a while... <q-spinner color="primary" size="1.2em"/></p>
         <div id="detection"></div>
         <div class="text-center">
           <q-btn class="q-mt-lg align-center" label="CANCEL DETECTION" icon="mdi-cancel" color="deep-orange" @click="cancel" />
@@ -14,7 +14,7 @@
     <div style="min-width: 350px;">
       <p class="text-center text-subtitle2">Object detection classes</p>
       
-      <p>Please select the detection classes.</p>
+      <p>Please select the objects you want to detect in the video:</p>
 
       <div>
         <q-btn @click="selectClass(key as string)" class="q-ma-xs" v-for="(value, key) in detectionClasses" outline round :color="value.select ? `primary`: `grey`" :icon="value.icon" :key="key">
@@ -26,7 +26,7 @@
 
     </div>
 
-    <q-footer class="bg-grey-3 text-black" style="z-index:9999">
+    <q-footer elevated class="bg-dark text-black" style="z-index:9999">
       <q-toolbar>
         <q-btn @click="wp.step = 1" color="primary" label="Previous" />
         <q-space/>
@@ -45,8 +45,6 @@ import { wpStore } from 'src/stores/wpStore'
 import { type Project } from 'src/stores/wpStore'
 import utils from 'src/utils'
 import { useQuasar, QVueGlobals } from 'quasar'
-import videojs from 'video.js'
-import 'video.js/dist/video-js.css'
 
 const q: QVueGlobals = useQuasar()
 const store = appStore()
@@ -75,7 +73,7 @@ const detectionClasses: Ref<DetectionClassMap> = ref({
   bag: { label:'Backpack, Umbrella, Handbag, Tie, Suitcase', icon: 'mdi-bag-personal', select: false, classes: [24, 25, 26, 27, 28] },
   sports: { label:'Frisbee, Skis, Snowboard, Sports ball, Kite, Baseball bat, Baseball glove, Skateboard, Surfboard, Tennis racket', icon: 'mdi-soccer', select: false, classes: [29, 30, 31, 32, 33, 34, 35, 36, 37, 38] },
   tableware: { label:'Bottle, Wine glass, Cup, Fork, Knife, Spoon, Bowl', icon: 'mdi-bottle-soda-classic-outline', select: false, classes: [39, 40, 41, 42, 43, 44, 45] },
-  food: { label:'Banana, Apple, Sandwich, Orange, Broccoli, Carrot, Hot dog, Pizza, Donut, Cake', icon: 'mdi-food', select: true, classes: [46, 47, 48, 49, 50, 51, 52, 53, 54, 55] },
+  food: { label:'Banana, Apple, Sandwich, Orange, Broccoli, Carrot, Hot dog, Pizza, Donut, Cake', icon: 'mdi-food', select: false, classes: [46, 47, 48, 49, 50, 51, 52, 53, 54, 55] },
   furniture: { label:'Chair, Couch, Potted plant, Bed, Dining table, Toilet', icon: 'mdi-sofa', select: false, classes: [56, 57, 58, 59, 60, 61] },
   electronics: { label:'TV, Laptop, Mouse, Remote, Keyboard, Cell phone', icon: 'mdi-monitor', select: false, classes: [62, 63, 64, 65, 66, 67] },
   kitchen: { label:'Microwave, Oven, Toaster, Sink, Refrigerator', icon: 'mdi-stove', select: false, classes: [68, 69, 70, 71, 72] },
@@ -114,6 +112,7 @@ async function detect(){
           }
         }
 
+        // save and go to next step
         wp.selectedProject!.detections = allSelections
         wp.persist()
         cancel()
@@ -153,6 +152,7 @@ async function detect(){
     console.log('Detection ws connection closed')
     detectModal.value = false
   }
+
   ws.onerror = (err) => {
     detectModal.value = false
     console.error('WebSocket error:', err)
@@ -179,7 +179,7 @@ async function persistClasses() {
       classes.push(...value.classes)
 
   wp.selectedProject!.classes = classes
-  await wp.persist()
+  wp.persist()
 } 
 
 onMounted(async () => {

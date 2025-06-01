@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref, nextTick } from 'vue'
 import type { Ref } from 'vue'
 import { appStore } from 'stores/appStore'
 import path from 'path'
@@ -50,14 +50,20 @@ export const wpStore = defineStore('wpStore', () => {
     await window.workspaceAPI.writeWorkspace(store.workSpacePath || '', JSON.stringify(workspace.value))
   }
 
-  function selectProjectById(id: string|null) {
+  async function selectProjectById(id: string|null) {
+    // close project is not tab is selected
     if (id == null) {
       selectedProject.value = null
       return
     }
+
+    // chose and render new pages
+    selectedProject.value = null
+    await nextTick()
     if (workspace.value)
       selectedProject.value = workspace.value.projects.find(p => p.id === id) || null
 
+    // always start at step 0
     step.value = 0
   }
 

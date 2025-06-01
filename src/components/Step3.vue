@@ -2,7 +2,7 @@
   <div class="col row" style="">
     <q-dialog class="full-width-dialog q-pa-xl" style="width:100%" v-model="anonymizationModal" persistent backdrop-filter="blur(4px)">
       <div>
-        <p class="text-center text-subtitle2">Anonymization, this may take a while...</p>
+        <p class="text-center text-subtitle2">Anonymization, this may take a while... <q-spinner color="primary" size="1.2em"/></p>
         <div id="detection"></div>
         <div class="text-center">
           <q-btn class="q-mt-lg align-center" label="CANCEL ANONYMIZATION" icon="mdi-cancel" color="deep-orange" @click="cancel" />
@@ -46,7 +46,7 @@
     </div>
     <div class="row items-center justify-center" style="flex:1;">
       <div style="width:100%" class="q-pa-xs">
-        <p class="text-center text-subtitle2">Object selection</p> 
+        <p class="text-center text-subtitle2">Select all the objects you want to anonymize</p> 
         <div style="position:relative;">
           <video
             ref="videoRef"
@@ -54,7 +54,6 @@
             controls
             preload="auto"
             :src="filePath"
-            style="border:1px solid grey; border-radius: 5px; width:100%;"
           />
           <canvas
             ref="canvasRef"
@@ -80,7 +79,7 @@
         </div>
       </div>
     </div>
-    <q-footer class="bg-grey-3 text-black" style="z-index:9999">
+    <q-footer elevated class="bg-dark text-black" style="z-index:9999">
       <q-toolbar>
         <q-btn @click="wp.step = 2" color="primary" label="Previous" />
         <q-space/>
@@ -358,7 +357,7 @@ onMounted(async () => {
     fps = await window.workspaceAPI.getVideoFPS(store.workSpacePath || '', filePath) || 25
     console.log('FPS:', fps)
 
-    next.value = await window.workspaceAPI.fileExists(`${store.workSpacePath}/projects/${wp.selectedProject?.folder}/final.mp4`)
+    next.value = await window.workspaceAPI.fileExists(store.workSpacePath || '', wp.selectedProject?.folder || '')
   }
   catch (e) {
     console.error(`Error: ${e}`)

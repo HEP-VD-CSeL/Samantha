@@ -38,7 +38,7 @@ contextBridge.exposeInMainWorld('electron', {
 contextBridge.exposeInMainWorld('workspaceAPI', {
   readWorkspace: (filePath: string) => ipcRenderer.invoke('read-workspace', path.join(filePath, 'data.json')),
   writeWorkspace: (filePath: string, data: any) => ipcRenderer.invoke('write-workspace', path.join(filePath, 'data.json'), data),
-  fileExists: (filePath: string) => ipcRenderer.invoke('file-exists', filePath),
+  fileExists: (projectPath: string, projectName: string) => ipcRenderer.invoke('file-exists', path.join(projectPath, 'projects', projectName, 'base.mp4')),
   getVideoFPS: (workspace: string, filePath: string): Promise<number | null> => {
     ffmpeg.setFfprobePath(path.join(workspace, 'models', 'ffprobe'))
     return new Promise((resolve, reject) => {
@@ -57,8 +57,9 @@ contextBridge.exposeInMainWorld('workspaceAPI', {
       })
     })
   },
-  cutAndEncodeVideo: async (workdspace: string, inputFilePath: string, outputPath: string, keepRanges: [string, string, number][]) => {
+  cutAndEncodeVideo: async (workdspace: string, projectName: string, inputFilePath: string, keepRanges: [string, string, number][]) => {
     console.log('cutting and encoding video')
+    const outputPath = path.join(workdspace, 'projects', projectName)
     // remove all files that start with 'segment' in the outputPath folder
     await removeSegments(outputPath)
 
@@ -79,8 +80,7 @@ contextBridge.exposeInMainWorld('workspaceAPI', {
         ffmpeg(inputFilePath)
           .setStartTime(start)
           .setDuration(duration)
-          // Re-encode to ensure MP4 compatibility
-          .videoCodec('libx264')
+          .videoCodec('libx264') // Re-encode to ensure MP4 compatibility
           .audioCodec('aac')
           .outputOptions('-movflags', 'faststart') // for better mp4 compatibility
           .outputOptions('-preset', 'fast')
@@ -185,7 +185,7 @@ contextBridge.exposeInMainWorld('sys', {
     await checkAndDownload(modelsFolderPath, files, 'FastSAM-x.pt', 'https://github.com/ultralytics/assets/releases/download/v8.3.0/FastSAM-x.pt')
     await checkAndDownload(modelsFolderPath, files, 'big-lama.pt', 'https://github.com/enesmsahin/simple-lama-inpainting/releases/download/v0.1.0/big-lama.pt')
     await checkAndDownload(modelsFolderPath, files, 'ffmpeg', 'http://static.grosjean.io/samantha/ffmpeg_osx') 
-    await checkAndDownload(modelsFolderPath, files, 'ffprobe', 'http://static.grosjean.io/samantha/ffprobe_osx') 
+    await checkAndDownload(modelsFolderPath, files, 'ffprobe', 'http://static.grosjean.io/samantha/ffprobe_osx')
 
     console.log(`Setup DONE`);
   },

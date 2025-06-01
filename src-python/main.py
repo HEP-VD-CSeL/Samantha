@@ -11,6 +11,7 @@ import base64
 import gc
 import os
 import subprocess
+import random
 
 print("Starting AI worker...") 
 app = FastAPI()
@@ -25,8 +26,8 @@ print(f"Device detected: {device}")
 
 async def detect(ws, workspace, file, classes):
   # models path
-  rt_detr_l_path = f'{workspace}/models/rt-detr-l.pt'
-  rt_detr_l_face_path = f'{workspace}/models/rt-detr-x-face.pt'
+  rt_detr_l_path = os.path.join(workspace, 'models', 'rt-detr-l.pt')
+  rt_detr_l_face_path = os.path.join(workspace, 'models', 'rt-detr-x-face.pt')
 
   # Object detection model
   model_object = RTDETR(rt_detr_l_path)
@@ -66,6 +67,8 @@ async def detect(ws, workspace, file, classes):
     if boxes_face is not None:
       for xyxy, conf, cls, tid in zip(boxes_face.xyxy.cpu().numpy(), boxes_face.conf.cpu().numpy(), boxes_face.cls.cpu().numpy(),(boxes_face.id.cpu().numpy() if boxes_face.id is not None else [-1]*len(boxes_face))):
         x1, y1, x2, y2 = map(int, xyxy)
+        if tid == -1:
+          tid = -random.randint(10000, 99999)
         detection = {
           "id": int(tid),
           "classid": -1, # we set the classid to -1 for face detection
@@ -82,6 +85,8 @@ async def detect(ws, workspace, file, classes):
       # xyxy, confidence, class, track_id are all tensors; move to CPU & numpy
       for xyxy, conf, cls, tid in zip(boxes.xyxy.cpu().numpy(), boxes.conf.cpu().numpy(), boxes.cls.cpu().numpy(), (boxes.id.cpu().numpy() if boxes.id is not None else [-1]*len(boxes))):
         x1,y1,x2,y2 = map(int, xyxy)
+        if tid == -1:
+          tid = -random.randint(10000, 99999)
         detection = {
           "id": int(tid),
           "classid": int(cls),
@@ -201,14 +206,15 @@ async def anonymize(ws, workspace, target_folder, file, detections_list):
     exit()
 
   # sam model
-  fast_sam = FastSAM(f'{workspace}/models/FastSAM-x.pt')
+  fast_sam = FastSAM(os.path.join(workspace, 'models', 'FastSAM-x.pt'))
   fast_sam.to(device)
   # inpainting model
-  model_inpainting = torch.jit.load(f'{workspace}/models/big-lama.pt', map_location=device)
+  model_inpainting = torch.jit.load(os.path.join(workspace, 'models', 'big-lama.pt'), map_location=device)
   model_inpainting.eval()
   model_inpainting.to(device)
 
   # initialize video writer
+  frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
   fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # or 'XVID', 'avc1', etc.
   fps = cap.get(cv2.CAP_PROP_FPS)
   width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -305,6 +311,7 @@ async def anonymize(ws, workspace, target_folder, file, detections_list):
       "-i", file,
       "-map", "0:v:0",
       "-map", "1:a:0",
+      #"-t", str((frame_count - 2) / fps),  # Remove the last 2 frames if the video as they don't include detections
       "-c:v", "libx264",
       "-preset", "fast",
       "-crf", "23",
@@ -344,7 +351,7 @@ async def detect_endpoint(ws: WebSocket):
     classes = data.get("classes")
 
     detections_per_frame = await detect(ws=ws, workspace=workspace, file=file, classes=classes) 
-    
+
     print("Detection finished.")
     await ws.send_text(json.dumps({ "status": "done", "detections": detections_per_frame }))
     
@@ -370,7 +377,7 @@ async def detect_endpoint(ws: WebSocket):
     file = data.get("file")
     detections = data.get("detections")
     name = data.get("name")
-    target_folder = f"{workspace}/projects/{name}"
+    target_folder = os.path.join(workspace, 'projects', name)
     
     final_file = os.path.join(target_folder, "final.mp4")
     if os.path.exists(final_file):
@@ -378,6 +385,7 @@ async def detect_endpoint(ws: WebSocket):
 
     # Call the anonymization function
     await anonymize(ws=ws, workspace=workspace, target_folder=target_folder, file=file, detections_list=detections)
+    await asyncio.sleep(3)  # wait 3 seconds to ensure the video has fully been processed
     await ws.send_text(json.dumps({ "status": "done" }))
     print("Anonymization finished.")
 

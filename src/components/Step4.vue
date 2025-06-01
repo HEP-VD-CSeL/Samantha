@@ -11,7 +11,6 @@
             controls
             preload="auto"
             :src="filePath"
-            style="border:1px solid grey; border-radius: 5px; width:100%;"
           />
         </div>
         <div class="q-mt-md text-center" style="">
@@ -33,7 +32,7 @@
         </div>
       </div>
     </div>
-    <q-footer class="bg-grey-3 text-black" style="z-index:9999">
+    <q-footer elevated class="bg-dark text-black" style="z-index:9999">
       <q-toolbar>
         <q-btn @click="wp.step = 3" color="primary" label="Previous" />
         <q-space/>

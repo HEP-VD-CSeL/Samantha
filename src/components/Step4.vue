@@ -10,7 +10,7 @@
             class="video-js vjs-default-skin"
             controls
             preload="auto"
-            :src="filePath"
+            :src="`${filePath}?cb=${Date.now()}`"
           />
         </div>
         <div class="q-mt-md text-center" style="">

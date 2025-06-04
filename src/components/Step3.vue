@@ -56,7 +56,7 @@
             class="video-js vjs-default-skin"
             controls
             preload="auto"
-            :src="filePath"
+            :src="`${filePath}?cb=${Date.now()}`"
           />
           <canvas
             ref="canvasRef"

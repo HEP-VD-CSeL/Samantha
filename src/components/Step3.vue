@@ -22,6 +22,9 @@
             <q-item-section avatar>
               <q-btn flat dense round icon="mdi-dots-vertical">
                 <q-menu>
+                  <q-item @click="split(detection, currentFrame)" clickable v-close-popup>
+                    <q-item-section>Split</q-item-section>
+                  </q-item>
                   <q-list style="min-width: 100px">
                     <q-item @click="applyFilter(detection.classid, detection.id, true, null)" clickable v-close-popup>
                       <q-item-section>Blur</q-item-section>
@@ -148,7 +151,7 @@ function getIcon(det: Detection){
 function split(detection: Detection, frame: number) {
   if (!wp.selectedProject?.detections) return
 
-  // 1. Find all ids for this class
+  // Find all ids for this class
   const allIds = new Set<number>()
   for (const frameDetections of wp.selectedProject.detections) {
     for (const det of frameDetections) {
@@ -158,26 +161,24 @@ function split(detection: Detection, frame: number) {
     }
   }
 
-  // 2. Generate a new id (max id + 1)
+  // Generate a new id (max id + 1)
   let newId = Math.max(...Array.from(allIds)) + 1
 
-  // 3. Always look for the original id in all future frames
+  // Always look for the original id in all future frames
   const originalId = detection.id
 
-  // 4. For all frames from 'frame' to the end, update the detection
+  // For all frames from 'frame' to the end, update the detection
   for (let f = frame; f < wp.selectedProject.detections.length; f++) {
     const frameDetections = wp.selectedProject.detections[f]
-    for (const det of frameDetections) {
+    for (const det of frameDetections || []) {
       if (det.classid === detection.classid && det.id === originalId) {
         det.id = newId
         det.blur = false
         det.inpaint = false
-        // Do NOT update idToSplit or break here, keep updating all with originalId
       }
     }
   }
 
-  // 5. Redraw
   drawDetections()
   wp.persist()
 }

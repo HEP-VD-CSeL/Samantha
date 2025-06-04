@@ -117,7 +117,7 @@ const currentFrame: Ref<number> = ref(0)
 const canvasRef = ref<HTMLCanvasElement|null>(null)
 const anonymizationModal: Ref<boolean> = ref(false)
 
-let iconHitboxes: Array<{x: number, y: number, w: number, h: number, classid: number, detid: number}> = []
+let iconHitboxes: Array<{x: number, y: number, w: number, h: number, classid: number, detid: number, isSplit?: boolean,   detection?: Detection, frame?: number}> = []
 const highlightedDetection = ref<{ classid: number, id: number } | null>(null)
 
 function deleteDetection(classid: number, id: number) {
@@ -143,6 +143,43 @@ function getIcon(det: Detection){
   else if (det.inpaint)
     return '🚫'
   return '🟢'
+}
+
+function split(detection: Detection, frame: number) {
+  if (!wp.selectedProject?.detections) return
+
+  // 1. Find all ids for this class
+  const allIds = new Set<number>()
+  for (const frameDetections of wp.selectedProject.detections) {
+    for (const det of frameDetections) {
+      if (det.classid === detection.classid) {
+        allIds.add(det.id)
+      }
+    }
+  }
+
+  // 2. Generate a new id (max id + 1)
+  let newId = Math.max(...Array.from(allIds)) + 1
+
+  // 3. Always look for the original id in all future frames
+  const originalId = detection.id
+
+  // 4. For all frames from 'frame' to the end, update the detection
+  for (let f = frame; f < wp.selectedProject.detections.length; f++) {
+    const frameDetections = wp.selectedProject.detections[f]
+    for (const det of frameDetections) {
+      if (det.classid === detection.classid && det.id === originalId) {
+        det.id = newId
+        det.blur = false
+        det.inpaint = false
+        // Do NOT update idToSplit or break here, keep updating all with originalId
+      }
+    }
+  }
+
+  // 5. Redraw
+  drawDetections()
+  wp.persist()
 }
 
 function drawDetections() {
@@ -185,8 +222,10 @@ function drawDetection(ctx: CanvasRenderingContext2D, det: Detection, isHighligh
   ctx.textAlign = 'start'
   ctx.textBaseline = 'alphabetic'
   const icon = getIcon(det)
-  const label = `${icon} ${det.classname} ${det.id}`
-  const textWidth = ctx.measureText(label).width
+  const labelMain = `${icon} ${det.classname} ${det.id} `
+  const splitIcon = '⎇'
+  const textWidth = ctx.measureText(labelMain).width
+  const splitIconWidth = ctx.measureText(splitIcon).width
   const labelX = x1 + 8
   const labelY = y1 - 16
 
@@ -196,7 +235,7 @@ function drawDetection(ctx: CanvasRenderingContext2D, det: Detection, isHighligh
   ctx.fillRect(
     labelX - 6 - padding,
     y1 - 34 - padding - 8,
-    textWidth + 12 + 2 * padding,
+    textWidth + splitIconWidth + 12 + 2 * padding,
     34 + 2 * padding
   )
 
@@ -205,11 +244,15 @@ function drawDetection(ctx: CanvasRenderingContext2D, det: Detection, isHighligh
   ctx.lineWidth = isHighlight ? 8 : 6
   ctx.strokeRect(x1, y1, x2 - x1, y2 - y1)
 
-  // Draw label text
+  // Draw label text (all except the split icon)
   ctx.fillStyle = '#fff'
-  ctx.fillText(label, labelX, labelY)
+  ctx.fillText(labelMain, labelX, labelY)
 
-  // Store icon hitbox
+  // Draw the split icon in a different color (e.g., orange)
+  ctx.fillStyle = '#FFA500'
+  ctx.fillText(splitIcon, labelX + textWidth, labelY)
+
+  // Store icon hitbox (for click detection)
   const iconWidth = ctx.measureText(icon).width
   iconHitboxes.push({
     x: labelX,
@@ -218,6 +261,19 @@ function drawDetection(ctx: CanvasRenderingContext2D, det: Detection, isHighligh
     h: 30,
     classid: det.classid,
     detid: det.id
+  })
+
+  // Store split icon hitbox for click detection
+  iconHitboxes.push({
+    x: labelX + textWidth,
+    y: labelY - 30 + 8,
+    w: splitIconWidth,
+    h: 30,
+    classid: det.classid,
+    detid: det.id,
+    isSplit: true, // mark this as the split icon
+    detection: det,
+    frame: currentFrame.value
   })
 }
 
@@ -286,10 +342,10 @@ async function startAnonymization(){
   ws = new WebSocket('ws://localhost:3000/anonymize')
   anonymizationModal.value = true
 
+  let lastObjectUrl: any = null // to hold the last object URL to avoid memory leaks
   ws.onmessage = (event) => {
-    //console.log('Anonymization ws message:', event.data)
     // parse json data
-    if (event.data.startsWith('{')) {
+    if (typeof event.data === 'string' && event.data.startsWith('{')) {
       const data = JSON.parse(event.data)
       
       // detection is done, save the detections and go next
@@ -298,8 +354,7 @@ async function startAnonymization(){
         wp.step = 4
       }
     }
-    else {
-      // if it's not a json, it's a base64 jpg image
+    else if (event.data instanceof Blob) {
       const detectionDiv = document.getElementById('detection')
       if (detectionDiv) {
         // Remove all previous images
@@ -309,7 +364,14 @@ async function startAnonymization(){
         img.id = 'detection-img'
         img.style.width = '100%'
         img.style.display = 'block'
-        img.src = 'data:image/jpeg;base64,' + event.data
+
+        // Revoke the previous object URL to free memory
+        if (lastObjectUrl) 
+          URL.revokeObjectURL(lastObjectUrl)
+
+        img.src = URL.createObjectURL(event.data)
+        lastObjectUrl = img.src
+
         detectionDiv.appendChild(img)
       }
     }
@@ -409,21 +471,7 @@ onMounted(async () => {
   // make the canvas clickable
   const canvas = canvasRef.value
   if (canvas) {
-    canvas.addEventListener('click', (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect()
-      const scaleX = canvas.width / rect.width
-      const scaleY = canvas.height / rect.height
-      const x = (e.clientX - rect.left) * scaleX
-      const y = (e.clientY - rect.top) * scaleY
-      for (const hit of iconHitboxes) {
-        if (x >= hit.x && x <= hit.x + hit.w && y >= hit.y && y <= hit.y + hit.h) {
-          applyFilter(hit.classid, hit.detid)
-          break
-        }
-      }
-    })
-  
-    // Mousemove event for cursor change
+    // split icon hover effect
     canvas.addEventListener('mousemove', (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect()
       const scaleX = canvas.width / rect.width
@@ -438,6 +486,27 @@ onMounted(async () => {
         }
       }
       canvas.style.cursor = overIcon ? 'pointer' : 'default'
+    })
+
+    canvas.addEventListener('click', (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      const scaleX = canvas.width / rect.width
+      const scaleY = canvas.height / rect.height
+      const x = (e.clientX - rect.left) * scaleX
+      const y = (e.clientY - rect.top) * scaleY
+      for (const hit of iconHitboxes) {
+        if (x >= hit.x && x <= hit.x + hit.w && y >= hit.y && y <= hit.y + hit.h) {
+          if (hit.isSplit) {
+            if (hit.detection && typeof hit.frame === 'number') {
+              split(hit.detection, hit.frame)
+            }
+            break
+          } else {
+            applyFilter(hit.classid, hit.detid)
+            break
+          }
+        }
+      }
     })
   }
 })

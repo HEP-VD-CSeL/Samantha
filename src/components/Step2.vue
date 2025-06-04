@@ -83,7 +83,8 @@ const detectionClasses: Ref<DetectionClassMap> = ref({
 function cancel() {
   if (ws) {
     ws.close()
-    ws = null
+    //ws = null
+    console.log('clooooooooose');
   }
   detectModal.value = false
 }
@@ -96,9 +97,10 @@ async function detect(){
 
   detectModal.value = true
 
+  let lastObjectUrl: any = null // to hold the last object URL to avoid memory leaks
   ws.onmessage = (event) => {
     // parse json data
-    if (event.data.startsWith('{')) {
+    if (typeof event.data === 'string' && event.data.startsWith('{')) {
       const data = JSON.parse(event.data)
 
       // detection is done, save the detections and go next
@@ -117,10 +119,11 @@ async function detect(){
         wp.persist()
         cancel()
         wp.step = 3
+
+        console.log('Detection done!')
       }
     }
-    else {
-      // if it's not a json, it's a base64 jpg image
+    else if (event.data instanceof Blob) {
       const detectionDiv = document.getElementById('detection')
       if (detectionDiv) {
         // Remove all previous images
@@ -130,7 +133,14 @@ async function detect(){
         img.id = 'detection-img'
         img.style.width = '100%'
         img.style.display = 'block'
-        img.src = 'data:image/jpeg;base64,' + event.data
+
+        // Revoke the previous object URL to free memory
+        if (lastObjectUrl) 
+          URL.revokeObjectURL(lastObjectUrl)
+
+        img.src = URL.createObjectURL(event.data)
+        lastObjectUrl = img.src
+
         detectionDiv.appendChild(img)
       }
     }
@@ -151,6 +161,7 @@ async function detect(){
   ws.onclose = () => {
     console.log('Detection ws connection closed')
     detectModal.value = false
+    ws = null
   }
 
   ws.onerror = (err) => {

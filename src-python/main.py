@@ -56,13 +56,13 @@ async def detect(ws, workspace, file, classes):
     frame_detections = []
 
     # run the detection models asynchronously
-    results_face = asyncio.to_thread(model_face.track, frame, persist=True, conf=0.3, iou=0.45, tracker=tracker_cfg)
-    results = asyncio.to_thread(model_object.track, frame, persist=True, conf=0.5, iou=0.5, tracker=tracker_cfg)
+    #results_face = asyncio.to_thread(model_face.track, frame, persist=True, conf=0.3, iou=0.45, tracker=tracker_cfg)
+    #results = asyncio.to_thread(model_object.track, frame, persist=True, conf=0.5, iou=0.5, tracker=tracker_cfg)
 
 
     # Face detection + tracking
-    #results_face = model_face.track(frame, persist=True, conf=0.1, iou=0.3, tracker=tracker_cfg)
-    results_face = await results_face
+    results_face = model_face.track(frame, persist=True, conf=0.1, iou=0.3, tracker=tracker_cfg)
+    #results_face = await results_face
     boxes_face = results_face[0].boxes
     if boxes_face is not None:
       for xyxy, conf, cls, tid in zip(boxes_face.xyxy.cpu().numpy(), boxes_face.conf.cpu().numpy(), boxes_face.cls.cpu().numpy(),(boxes_face.id.cpu().numpy() if boxes_face.id is not None else [-1]*len(boxes_face))):
@@ -73,13 +73,13 @@ async def detect(ws, workspace, file, classes):
           "id": int(tid),
           "classid": -1, # we set the classid to -1 for face detection
           "classname": "face",  
-          "positions": { "x1": x1, "y1": y1, "x2": x2, "y2": y2}
+          "positions": { "x1": x1, "y1": y1, "x2": x2, "y2": y2 }
         }
         frame_detections.append(detection)
     
     # objects detection + tracking
-    #results = model_object.track(frame, persist=True, conf=0.1, iou=0.3, tracker=tracker_cfg)
-    results = await results 
+    results = model_object.track(frame, persist=True, conf=0.1, iou=0.3, tracker=tracker_cfg)
+    #results = await results 
     boxes = results[0].boxes   # ultralytics Results object
     if boxes is not None:
       # xyxy, confidence, class, track_id are all tensors; move to CPU & numpy
@@ -111,8 +111,8 @@ async def detect(ws, workspace, file, classes):
       cv2.putText(frame, label, (det["x1"], det["y1"]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
     # send image to client
-    await ws.send_text(base64.b64encode(cv2.imencode('.jpg', frame)[1]).decode('utf-8'))
-    
+    await ws.send_bytes((cv2.imencode('.jpg', frame)[1]).tobytes())
+
     if cv2.waitKey(1) == 27:   # ESC
       break
 
@@ -131,72 +131,72 @@ async def detect(ws, workspace, file, classes):
   return detections_per_frame
 
 def get_image(image):
-    if isinstance(image, Image.Image):
-        img = np.array(image)
-    elif isinstance(image, np.ndarray):
-        img = image.copy()
-    else:
-        raise Exception("Input image should be either PIL Image or numpy array!")
+  if isinstance(image, Image.Image):
+    img = np.array(image)
+  elif isinstance(image, np.ndarray):
+    img = image.copy()
+  else:
+    raise Exception("Input image should be either PIL Image or numpy array!")
 
-    if img.ndim == 3:
-        img = np.transpose(img, (2, 0, 1))  # chw
-    elif img.ndim == 2:
-        img = img[np.newaxis, ...]
+  if img.ndim == 3:
+    img = np.transpose(img, (2, 0, 1))  # chw
+  elif img.ndim == 2:
+    img = img[np.newaxis, ...]
 
-    assert img.ndim == 3
+  assert img.ndim == 3
 
-    img = img.astype(np.float32) / 255
-    return img
+  img = img.astype(np.float32) / 255
+  return img
 
 
 def ceil_modulo(x, mod):
-    if x % mod == 0:
-        return x
-    return (x // mod + 1) * mod
+  if x % mod == 0:
+    return x
+  return (x // mod + 1) * mod
 
 
 def scale_image(img, factor, interpolation=cv2.INTER_AREA):
-    if img.shape[0] == 1:
-        img = img[0]
-    else:
-        img = np.transpose(img, (1, 2, 0))
+  if img.shape[0] == 1:
+    img = img[0]
+  else:
+    img = np.transpose(img, (1, 2, 0))
 
-    img = cv2.resize(img, dsize=None, fx=factor, fy=factor, interpolation=interpolation)
+  img = cv2.resize(img, dsize=None, fx=factor, fy=factor, interpolation=interpolation)
 
-    if img.ndim == 2:
-        img = img[None, ...]
-    else:
-        img = np.transpose(img, (2, 0, 1))
-    return img
+  if img.ndim == 2:
+    img = img[None, ...]
+  else:
+    img = np.transpose(img, (2, 0, 1))
+  return img
 
 def pad_img_to_modulo(img, mod):
-    channels, height, width = img.shape
-    out_height = ceil_modulo(height, mod)
-    out_width = ceil_modulo(width, mod)
-    return np.pad(
-        img,
-        ((0, 0), (0, out_height - height), (0, out_width - width)),
-        mode="symmetric",
-    )
+  channels, height, width = img.shape
+  out_height = ceil_modulo(height, mod)
+  out_width = ceil_modulo(width, mod)
+  return np.pad(
+    img,
+    ((0, 0), (0, out_height - height), (0, out_width - width)),
+    mode="symmetric",
+  )
 
 def prepare_img_and_mask(image, mask, device, pad_out_to_modulo=8, scale_factor=None):
-    out_image = get_image(image)
-    out_mask = get_image(mask)
+  out_image = get_image(image)
+  out_mask = get_image(mask)
 
-    if scale_factor is not None:
-        out_image = scale_image(out_image, scale_factor)
-        out_mask = scale_image(out_mask, scale_factor, interpolation=cv2.INTER_NEAREST)
+  if scale_factor is not None:
+    out_image = scale_image(out_image, scale_factor)
+    out_mask = scale_image(out_mask, scale_factor, interpolation=cv2.INTER_NEAREST)
 
-    if pad_out_to_modulo is not None and pad_out_to_modulo > 1:
-        out_image = pad_img_to_modulo(out_image, pad_out_to_modulo)
-        out_mask = pad_img_to_modulo(out_mask, pad_out_to_modulo)
+  if pad_out_to_modulo is not None and pad_out_to_modulo > 1:
+    out_image = pad_img_to_modulo(out_image, pad_out_to_modulo)
+    out_mask = pad_img_to_modulo(out_mask, pad_out_to_modulo)
 
-    out_image = torch.from_numpy(out_image).unsqueeze(0).to(device)
-    out_mask = torch.from_numpy(out_mask).unsqueeze(0).to(device)
+  out_image = torch.from_numpy(out_image).unsqueeze(0).to(device)
+  out_mask = torch.from_numpy(out_mask).unsqueeze(0).to(device)
 
-    out_mask = (out_mask > 0) * 1
+  out_mask = (out_mask > 0) * 1
 
-    return out_image, out_mask
+  return out_image, out_mask
 
 async def anonymize(ws, workspace, target_folder, file, detections_list):
   # video loop
@@ -228,8 +228,9 @@ async def anonymize(ws, workspace, target_folder, file, detections_list):
       break
 
     # send clear image to client
-    await ws.send_text(base64.b64encode(cv2.imencode('.jpg', frame)[1]).decode('utf-8'))
-    
+    await ws.send_bytes((cv2.imencode('.jpg', frame)[1]).tobytes())
+
+
     # run FastSAM on every detection
     detections = detections_list.pop(0)
     for detection in detections:
@@ -264,7 +265,7 @@ async def anonymize(ws, workspace, target_folder, file, detections_list):
 
       if detection['blur']:
         mask_bool = mask > 0.1  # Use a reasonable threshold
-        blurred = cv2.GaussianBlur(frame, (81, 81), 0)
+        blurred = cv2.GaussianBlur(frame, (151, 151), 0)
         frame[mask_bool] = blurred[mask_bool]
       
       elif detection['inpaint']:
@@ -283,16 +284,17 @@ async def anonymize(ws, workspace, target_folder, file, detections_list):
         img_tensor, mask_tensor = prepare_img_and_mask(frame_pil, mask_pil, device)
 
         with torch.inference_mode():
-            inpainted = model_inpainting(img_tensor, mask_tensor)
-            inpainted_np = inpainted[0].permute(1, 2, 0).detach().cpu().numpy()
-            inpainted_np = np.clip(inpainted_np * 255, 0, 255).astype(np.uint8)
+          inpainted = model_inpainting(img_tensor, mask_tensor)
+          inpainted_np = inpainted[0].permute(1, 2, 0).detach().cpu().numpy()
+          inpainted_np = np.clip(inpainted_np * 255, 0, 255).astype(np.uint8)
 
         inpainted_bgr = cv2.cvtColor(inpainted_np, cv2.COLOR_RGB2BGR)
         frame[mask_bin > 0] = inpainted_bgr[mask_bin > 0]  
 
-      # send image to client
-      await ws.send_text(base64.b64encode(cv2.imencode('.jpg', frame)[1]).decode('utf-8'))
-    
+      # send filtered image to client
+      await ws.send_bytes((cv2.imencode('.jpg', frame)[1]).tobytes())
+
+
     # write the frame to the output video
     out.write(frame)
     
@@ -391,7 +393,7 @@ async def detect_endpoint(ws: WebSocket):
 
     await ws.close()
   except WebSocketDisconnect as e:
-    print(f"WebSocket disconnected, stopping detection: {e}")
+    print(f"WebSocket disconnected, stopping anonymization: {e}")
   except Exception as e:
     print("Anonymization error:", e)
     await ws.close()

@@ -8,7 +8,7 @@ export const appStore = defineStore('appStore', () => {
   const sysOK: Ref<boolean> = ref(false)
 
   // /Users/marcel/samantha
-  const workSpacePath: Ref<string|null> = ref('/Users/marcel/samantha')
+  const workSpacePath: Ref<string|null> = ref(null)
 
   const splitter: Ref<number> = ref(0)
   const upperLimit: Ref<number> = ref(0)

@@ -108,7 +108,7 @@ onMounted(() => {
     // automatically move to the next step
     setTimeout(() => {
       store.sysOK = true
-    }, 1)
+    }, 1000)
   }
 });
 
